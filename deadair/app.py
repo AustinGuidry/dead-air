@@ -1,5 +1,7 @@
 """DEAD AIR — Textual front end."""
 
+import argparse
+
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -444,5 +446,18 @@ class DeadAir(App):
         self.refresh_panels()
 
 
-def main():
-    DeadAir().run()
+def parse_args(argv=None):
+    p = argparse.ArgumentParser(
+        prog="deadair",
+        description="DEAD AIR — a first-person cave-horror game for the "
+                    "terminal.")
+    p.add_argument("--seed", type=int, metavar="N", default=None,
+                   help="fix the run's coin-flips — which ambience fires, "
+                        "which line basecamp comes back with, which of your "
+                        "own past actions the cave plays back at you. The "
+                        "cave itself does not change. Survives a new run.")
+    return p.parse_args(argv)
+
+
+def main(argv=None):
+    DeadAir(seed=parse_args(argv).seed).run()

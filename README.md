@@ -27,6 +27,9 @@ half-blocks elsewhere.
 
 Or: `.venv/bin/python -m deadair`
 
+Pass `--seed N` to fix the run's coin-flips — the same seed always gives you
+the same cave noises. `--help` lists the options.
+
 ## Controls
 
 | key   | action |

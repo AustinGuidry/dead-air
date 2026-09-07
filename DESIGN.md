@@ -122,5 +122,10 @@ Raising `DAYLIGHT_TOTAL` past about 110 lets you exhaust the park, which
 costs the act its only source of pressure.
 
 A clean run to the bottom and back is about 3 hours of game time and lands
-you at the surface around 10–20% lamp. `Game(seed=N)` makes ambience
-deterministic for testing.
+you at the surface around 10–20% lamp.
+
+`Game(seed=N)` makes the ambience deterministic for testing, and `--seed N`
+threads one in from the shell — `deadair --seed 7`, or `./play --seed 7`. The
+seed is held on the app, so `N` for a new run reseeds identically rather than
+drifting. It fixes only the RNG draws; the cave, the prose and the endings
+are not procedural.
