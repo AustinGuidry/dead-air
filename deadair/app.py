@@ -1,12 +1,14 @@
 """DEAD AIR — Textual front end."""
 
+from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Static
 
+from . import art
 from .content import ROOMS
-from .state import Game, ENDINGS, ROPE_TOTAL
+from .state import Game, ROPE_TOTAL, DAYLIGHT_TOTAL, PARK_START
 
 STYLE = {
     "title": "bold #f0b46b",
@@ -19,6 +21,13 @@ STYLE = {
 }
 
 BAR_FULL, BAR_EMPTY = "█", "─"
+
+# the cave proper — the park does not count toward a survey
+CAVE_ROOMS = [r for r in ROOMS.values()
+              if "park" not in r.tags and r.id not in ("drowned", "stay")]
+CAVE_IDS = {r.id for r in CAVE_ROOMS}
+
+VIEW_ROWS = 13
 
 
 def bar(pct, width=14, colour="#f0b46b"):
@@ -38,6 +47,12 @@ class DeadAir(App):
         padding: 0 2; text-style: bold;
     }
     #topbar.hunted { background: #3d1512; color: #ff8f7c; }
+    #viewport {
+        height: 13; background: #080807;
+        border-bottom: solid #2a2723;
+    }
+    #viewport.gone { display: none; }
+    #view { width: 100%; height: 100%; }
     #body { height: 1fr; }
     #narrative {
         width: 1fr; padding: 1 3 1 2; background: #0d0c0b;
@@ -59,11 +74,8 @@ class DeadAir(App):
     """
 
     BINDINGS = [
-        Binding("1", "choose(0)", "1", show=False),
-        Binding("2", "choose(1)", "2", show=False),
-        Binding("3", "choose(2)", "3", show=False),
-        Binding("4", "choose(3)", "4", show=False),
-        Binding("5", "choose(4)", "5", show=False),
+        *[Binding(str(n), f"choose({n - 1})", str(n), show=False)
+          for n in range(1, 10)],
         Binding("l", "listen", "listen"),
         Binding("r", "radio", "radio"),
         Binding("x", "look", "look"),
@@ -77,11 +89,15 @@ class DeadAir(App):
         super().__init__()
         self.seed = seed
         self.game = Game(seed)
+        self._view_key = None
+        self._can_draw = False
 
     # -- layout -------------------------------------------------------------
 
     def compose(self) -> ComposeResult:
         yield Static(id="topbar")
+        with Vertical(id="viewport"):
+            yield self._make_view()
         with Horizontal(id="body"):
             yield VerticalScroll(id="narrative")
             with Vertical(id="side"):
@@ -90,13 +106,86 @@ class DeadAir(App):
                 yield Static(id="map")
         yield Static(id="actions")
 
+    def _make_view(self):
+        """The image widget, or a plain Static if this terminal cannot."""
+        try:
+            from textual_image.widget import AutoImage
+            self._can_draw = True
+            return AutoImage(id="view")
+        except Exception:
+            self._can_draw = False
+            return Static(id="view")
+
     def on_mount(self):
+        if not self._can_draw:
+            self.query_one("#viewport").add_class("gone")
         self.emit([("title", "DEAD AIR"),
-                   ("sys", "Piney Ridge National Park.  02:14.  "
+                   ("sys", "Piney Ridge National Park.  18:40.  "
                            "Search and rescue callout, one subject, "
                            "nineteen hours overdue.")])
         self.emit(self.game.enter())
         self.refresh_panels()
+        # the viewport has no size until the first layout has happened
+        self.call_after_refresh(self.refresh_view)
+
+    def on_resize(self, event=None):
+        self._view_key = None
+        self.refresh_view()
+
+    # -- the viewport -------------------------------------------------------
+
+    def refresh_view(self):
+        """Redraw the lamp's-eye view, if what it would show has changed."""
+        if not self._can_draw:
+            return
+        g = self.game
+        view = self.query_one("#view")
+        cols, rows = view.size.width, view.size.height
+        if cols < 8 or rows < 3:
+            return
+        # a cell is roughly twice as tall as it is wide; round the pixel size
+        # off so that the render cache actually gets hits
+        w = max(256, min(608, (cols * 7 // 16) * 16))
+        h = max(96, min(224, (rows * 15 // 8) * 8))
+        band = art.light_band(100.0 if g.phase == "park" else g.reach)
+        sky = art.sky_band(g.daylight) if g.phase == "park" else 4
+        key = (g.here, band, sky, w, h)
+        if key == self._view_key:
+            return
+        self._view_key = key
+        self._draw(*key)
+
+    @work(thread=True, exclusive=True, group="view")
+    def _draw(self, room, band, sky, w, h):
+        try:
+            img = art.frame(room, band, sky, w, h)
+        except Exception:
+            return
+        self.call_from_thread(self._show, img)
+
+    def _show(self, img):
+        try:
+            self.query_one("#view").image = img
+        except Exception:
+            return
+        # draw the rooms you could walk into next while nothing else is
+        # happening, so that moving does not sit on a stale frame
+        self._prefetch(self._neighbours())
+
+    def _neighbours(self):
+        if not self._view_key:
+            return []
+        _, band, sky, w, h = self._view_key
+        return [(x.to, band, sky, w, h) for x in self.game.room.exits
+                if x.to in art.SCENES]
+
+    @work(thread=True, exclusive=True, group="prefetch")
+    def _prefetch(self, keys):
+        for key in keys:
+            try:
+                art.frame(*key)
+            except Exception:
+                return
 
     # -- output -------------------------------------------------------------
 
@@ -119,6 +208,66 @@ class DeadAir(App):
     # -- side panels --------------------------------------------------------
 
     def refresh_panels(self):
+        g = self.game
+        if g.phase == "park":
+            self.refresh_park()
+        else:
+            self.refresh_cave()
+        self.refresh_actions()
+        self.refresh_view()
+
+    def refresh_park(self):
+        g = self.game
+        top = self.query_one("#topbar", Static)
+        top.set_class(False, "hunted")
+        top.update(f"DEAD AIR   ·   {g.room.name}   ·   {g.wall_clock()}"
+                   f"   ·   Act One")
+
+        light_col = ("#f0b46b" if g.daylight > 55 else
+                     "#d3c07a" if g.daylight > 25 else "#dd6a58")
+        gone = (PARK_START + DAYLIGHT_TOTAL) % (24 * 60)
+        lines = [
+            f"[#8d867c]LIGHT [/] {bar(g.daylight, 14, light_col)}"
+            f" {g.daylight:5.1f}%",
+            f"[#8d867c]      [/] [#5a554e]last light {gone // 60:02d}:"
+            f"{gone % 60:02d}[/]",
+            f"[#8d867c]SIGNAL[/] {bar(100, 14, '#8fc98f')} {'strong':>5}",
+        ]
+        if g.daylight <= 0:
+            lines.append("[#5a554e]      headlamp on[/]")
+        self.query_one("#meters", Static).update("\n".join(lines))
+
+        asked = sum(min(self.game.said.get(p.name, 0), len(p.beats))
+                    for r in ROOMS.values() for p in r.people)
+        beats = sum(len(p.beats) for r in ROOMS.values() for p in r.people)
+        clues = [c for r in ROOMS.values() for c in r.clues]
+        seen = sum(1 for c in clues if f"seen:{c.label}" in g.flags)
+        kit = ["[#8d867c]NOTEBOOK[/]",
+               f"  heard         [#cdc6bb]{asked}[/][#5a554e]/{beats}[/]",
+               f"  examined      [#cdc6bb]{seen}[/][#5a554e]/{len(clues)}[/]"]
+        kit.append("  cleared to go [#a9c987]yes[/]" if "ready" in g.flags
+                   else "  cleared to go [#5a554e]not yet[/]")
+        self.query_one("#kit", Static).update("\n".join(kit))
+        self.query_one("#map", Static).update(
+            "[#8d867c]APPROACH[/]\n" + self.render_approach())
+
+    def render_approach(self):
+        """A line of the walk in, rather than a survey you have not made."""
+        order = ["trailhead", "ridge_trail", "blowdown", "hollow", "basecamp"]
+        names = {"trailhead": "trailhead", "ridge_trail": "ridge trail",
+                 "blowdown": "the blowdown", "hollow": "the hollow",
+                 "basecamp": "wolf sink"}
+        out = []
+        for rid in order:
+            if rid == self.game.here:
+                out.append(f"  [bold #f0b46b]@[/] {names[rid]}")
+            elif rid in self.game.visited:
+                out.append(f"  [#a89478]O[/] [#6d675e]{names[rid]}[/]")
+            else:
+                out.append(f"  [#4a453f].[/] [#4a453f]{names[rid]}[/]")
+        return "\n".join(out)
+
+    def refresh_cave(self):
         g = self.game
         bar_text = (f"DEAD AIR   ·   {g.room.name}   ·   {g.depth} m   "
                     f"·   {g.clock()} elapsed")
@@ -149,7 +298,6 @@ class DeadAir(App):
             f"[#8d867c]SIGNAL[/] {bar(sig[1], 14, sig[2])} {sig[0]:>5}",
         ]
         self.query_one("#meters", Static).update("\n".join(lines))
-
         self.query_one("#map", Static).update(self.render_map())
 
         kit = [f"[#8d867c]KIT[/]"]
@@ -157,27 +305,27 @@ class DeadAir(App):
         kit.append("  helmet        [#a9c987]recovered[/]"
                    if "took_find" in g.flags else
                    "  helmet        [#5a554e]—[/]")
-        kit.append(f"  passages      [#cdc6bb]{len(g.visited)}[/#cdc6bb]"
-                   f"[#5a554e]/16[/]")
+        kit.append(f"  passages      [#cdc6bb]{self.surveyed()}[/#cdc6bb]"
+                   f"[#5a554e]/{len(CAVE_ROOMS)}[/]")
         self.query_one("#kit", Static).update("\n".join(kit))
 
-        self.refresh_actions()
+    def surveyed(self):
+        return len(self.game.visited & CAVE_IDS)
 
     def render_map(self):
         g = self.game
-        placed = {r.id: (r.mx * 4, r.my * 2) for r in ROOMS.values()
-                  if r.id not in ("drowned", "stay")}
+        placed = {r.id: (r.mx * 4, r.my * 2) for r in CAVE_ROOMS}
         w = max(x for x, _ in placed.values()) + 1
         h = max(y for _, y in placed.values()) + 1
         grid = [[" "] * w for _ in range(h)]
 
-        known = set(g.visited)
-        for rid in list(g.visited):
+        known = set(g.visited) & CAVE_IDS
+        for rid in list(known):
             for x in ROOMS[rid].exits:
                 if x.to in placed:
                     known.add(x.to)
 
-        for rid in g.visited:
+        for rid in g.visited & CAVE_IDS:
             ax, ay = placed[rid]
             for x in ROOMS[rid].exits:
                 if x.to not in placed:
@@ -218,17 +366,23 @@ class DeadAir(App):
                 "[#8d867c]  N  new run       Q  quit[/]")
             return
         rows = []
-        for i, (x, ok, why) in enumerate(g.exits()):
+        for i, (kind, label, ok, why, _) in enumerate(g.choices()):
             key = f"[bold #f0b46b]{i + 1}[/]" if ok else "[#4a453f]-[/]"
+            mark = {"talk": "[#7fa9bd]›[/] ", "clue": "[#8d867c]·[/] "}.get(
+                kind, "  ")
             if ok:
                 note = f"  [#5a554e]{why}[/]" if why else ""
-                rows.append(f" {key}  {x.label}{note}")
+                rows.append(f" {key} {mark}{label}{note}")
             else:
-                rows.append(f" {key}  [#4a453f]{x.label}  ({why})[/]")
+                rows.append(f" {key} {mark}[#4a453f]{label}  ({why})[/]")
         rows.append("")
-        rows.append("[#8d867c] L[/] listen   [#8d867c]R[/] radio   "
-                    "[#8d867c]X[/] look again   [#8d867c]D[/] dim beam   "
-                    "[#8d867c]C[/] swap cell")
+        if g.phase == "park":
+            rows.append("[#8d867c] L[/] listen   [#8d867c]R[/] radio   "
+                        "[#8d867c]X[/] look again")
+        else:
+            rows.append("[#8d867c] L[/] listen   [#8d867c]R[/] radio   "
+                        "[#8d867c]X[/] look again   [#8d867c]D[/] dim beam   "
+                        "[#8d867c]C[/] swap cell")
         self.query_one("#actions", Static).update("\n".join(rows))
 
     # -- actions ------------------------------------------------------------
@@ -240,21 +394,24 @@ class DeadAir(App):
         self.refresh_panels()
 
     def show_ending(self):
-        head, kind, body = ENDINGS[self.game.ending]
         g = self.game
-        self.emit([
-            ("title", head),
-            (kind, body),
-            ("sys", f"Elapsed {g.clock()}.  Deepest point "
-                    f"{min(ROOMS[r].depth for r in g.visited)} m.  "
-                    f"{len(g.visited)} passages surveyed."),
-            ("sys", "N for a new run.  Q to quit."),
-        ])
+        head, kind, body = g.ending_body()
+        deepest = min((ROOMS[r].depth for r in g.visited & CAVE_IDS),
+                      default=0)
+        ev = [("title", head), (kind, body)]
+        note = g.ending_note()
+        if note:
+            ev.append(("alarm", note))
+        ev.append(("sys", f"Out at {g.surface_clock()}.  Elapsed {g.clock()}. "
+                          f" Deepest point {deepest} m.  "
+                          f"{self.surveyed()} passages surveyed."))
+        ev.append(("sys", "N for a new run.  Q to quit."))
+        self.emit(ev)
 
     def action_choose(self, idx: int):
         if self.game.ending:
             return
-        self.after(self.game.move(idx))
+        self.after(self.game.act(idx))
 
     def action_listen(self):
         if not self.game.ending:
@@ -269,15 +426,16 @@ class DeadAir(App):
             self.after(self.game.look())
 
     def action_dim(self):
-        if not self.game.ending:
+        if not self.game.ending and self.game.phase == "cave":
             self.after(self.game.toggle_dim())
 
     def action_cell(self):
-        if not self.game.ending:
+        if not self.game.ending and self.game.phase == "cave":
             self.after(self.game.swap_cell())
 
     def action_restart(self):
         self.game = Game(self.seed)
+        self._view_key = None
         log = self.query_one("#narrative", VerticalScroll)
         for w in list(log.children):
             w.remove()

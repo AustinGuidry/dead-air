@@ -1,1 +1,4 @@
 textual>=8.0
+textual-image>=0.13
+pillow>=10.0
+numpy>=1.26

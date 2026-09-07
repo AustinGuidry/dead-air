@@ -28,6 +28,23 @@ class Exit:
 
 
 @dataclass
+class Person:
+    """Someone you can talk to. `beats` are consumed in order, one per ask."""
+    name: str
+    role: str
+    beats: list                 # [(text, flag_granted_or_empty)]
+
+
+@dataclass
+class Clue:
+    """Something you can go and look at properly. Costs you daylight."""
+    label: str
+    mins: int
+    text: str
+    flag: str = ""
+
+
+@dataclass
 class Room:
     id: str
     name: str
@@ -38,6 +55,8 @@ class Room:
     tags: set = field(default_factory=set)   # badair, water, signal, roof
     mx: int = 0                 # sidebar map grid
     my: int = 0
+    people: list = field(default_factory=list)   # Act One only
+    clues: list = field(default_factory=list)    # Act One only
 
 
 # --------------------------------------------------------------------------
@@ -57,9 +76,10 @@ ROOMS = {
         "lip. September. The cave is breathing in, which means it is deep, "
         "and it means somewhere far under you there is a second way to the "
         "surface that nobody has found.",
-        "Behind you the last of the light lies along the ridge in long "
-        "orange bars. Your shadow goes down into the hole ahead of you and "
-        "does not come back out."
+        "Behind you the work lights make a hard white room out of forty "
+        "feet of hemlock and nothing at all out of the rest of the ridge. "
+        "Your shadow goes down into the hole ahead of you and does not come "
+        "back out."
     ),
     first=(
         "Wren Alcott. Twenty-six. Solo, which is the whole problem. Their "
@@ -621,3 +641,504 @@ RADIO = {
         "your throat.",
     ],
 }
+
+
+# --------------------------------------------------------------------------
+#  ACT ONE — THE PARK
+#
+#  Dusk, six hours before you go underground. No lamp yet; the budget you
+#  are spending is daylight, which teaches the mechanic the cave will later
+#  charge you for. Nothing here can kill you. That is the point of it.
+# --------------------------------------------------------------------------
+
+PARK = {
+
+"trailhead": Room(
+    id="trailhead", name="Piney Ridge Trailhead", depth=0, mx=0, my=0,
+    tags={"surface", "park", "signal"},
+    look=(
+        "Gravel pull-off, room for six vehicles, four of them here. Yours is "
+        "the one with the light bar. The air smells like hot brake dust and "
+        "somebody's coffee going cold on a tailgate.",
+        "A silver hatchback sits nose-in at the far end under a hemlock, and "
+        "it has been sitting there since yesterday morning. There is a park "
+        "notice tucked under its wiper, which is the smallest and most "
+        "official way of saying that somebody noticed and did nothing.",
+        "The ridge goes up behind the lot and keeps going. Nineteen hundred "
+        "feet of it, hemlock over hardwood, and the light on it is the "
+        "colour of a struck match and running out fast."
+    ),
+    first=(
+        "Wren Alcott. Twenty-six. Solo, which is the whole problem.\n\n"
+        "Nineteen hours overdue on a permit that says Wolf Sink, and Wolf "
+        "Sink is a name that made three people at the ranger station go "
+        "quiet when you read it aloud.\n\n"
+        "You have until dark to walk the approach and talk to whoever saw "
+        "them last. After that this stops being a search and starts being "
+        "a callout, and you go down the hole."
+    ),
+    people=[
+        Person("Ranger Dolan Pace", "park law enforcement", [
+            ("\"Dolan Pace. I took the call.\" He shakes your hand like it "
+             "is a thing he has decided to do rather than a thing he does. "
+             "\"Vehicle's been here since oh-seven yesterday. Permit's in "
+             "the box. Everything by the book, right up until it wasn't.\"",
+             ""),
+            ("\"Wolf Sink isn't on the public map and it isn't on the "
+             "survey either — not properly. There's eleven pages from "
+             "seventy-three in a drawer in Blakely and that's the whole "
+             "file.\" He looks up the ridge. \"I've worked this park nine "
+             "years. I've never been down it and I've never wanted to.\"",
+             ""),
+            ("\"You want the honest version? We've had three in that hole. "
+             "Nineteen-eleven, sixty-eight, and now.\" He says it flat, the "
+             "way you say a thing you have already decided not to have an "
+             "opinion about. \"The board outside the station has two names "
+             "on it. I've been asked twice to take it down.\"",
+             "clue:board"),
+        ]),
+    ],
+    clues=[
+        Clue("The silver hatchback", 3,
+             "Unlocked. Nobody locks a car at a trailhead they mean to come "
+             "back to in four hours.\n\n"
+             "Inside: a change of clothes folded on the passenger seat, a "
+             "receipt from a gas station in Blakely timestamped 05:41 "
+             "yesterday, and, in the door pocket, a second permit — same "
+             "hand, same box ticked, dated three weeks ago.\n\n"
+             "Wren has been here before. More than once.",
+             "clue:car"),
+        Clue("The permit register", 3,
+             "A steel box on a post with a slot in the top and a pad of "
+             "carbon forms. You thumb back through the copies.\n\n"
+             "Wren's is on top, yesterday, 06:10, WOLF SINK printed in "
+             "small square capitals.\n\n"
+             "Six weeks back, in the same hand, the same box. And eleven "
+             "weeks. And in March, and in March again. Nine entries for "
+             "Wolf Sink in seven months and every one of them solo, and "
+             "not one of them logged an exit time.",
+             "clue:register"),
+    ],
+    exits=[
+        Exit(label="Take the trail up the ridge", to="ridge_trail", mins=6,
+             travel="You go up. The grade is honest for the first ten "
+                    "minutes and then it stops being honest."),
+    ],
+),
+
+"ridge_trail": Room(
+    id="ridge_trail", name="The Ridge Trail", depth=0, mx=1, my=0,
+    tags={"surface", "park", "signal"},
+    look=(
+        "Packed dirt and root, two feet wide, switchbacking up through "
+        "rhododendron that closes over the trail like a tunnel and then "
+        "lets go of it again.",
+        "A junction. The maintained trail goes left along the contour "
+        "toward the overlook. A second path goes right and downhill and is "
+        "not a trail at all — it is a use path, worn in by people who all "
+        "wanted to go to the same unmarked place.",
+        "From the turn you can see most of the drainage. Hemlock, and then "
+        "a wide scar of standing dead timber about a half mile north where "
+        "something came through, and past that nothing but ridge."
+    ),
+    people=[
+        Person("Ivy Crenshaw", "trail runner, waiting to give a statement", [
+            ("She is sitting on a rock with a foil blanket she does not "
+             "need around her shoulders, because somebody handed it to her "
+             "and she did not know how to refuse it.\n\n"
+             "\"I already told the ranger. I ran past them. Yesterday, "
+             "early, before it was properly light.\"",
+             ""),
+            ("\"They were going down the use path with a pack on. I said "
+             "morning and they said morning back.\" She stops. \"That's the "
+             "part I keep going over, because they said it like — like they "
+             "were being polite to somebody they'd already said it to. "
+             "Like I was the second person.\"",
+             "clue:ivy"),
+            ("\"There wasn't anyone else on the path. I'd have passed them. "
+             "It's a mile of switchback and you can see the whole thing.\"\n\n"
+             "She pulls the blanket tighter, and she is not cold.\n\n"
+             "\"I ran the rest of it faster than I meant to. I couldn't "
+             "tell you why. There weren't any birds.\"",
+             ""),
+        ]),
+    ],
+    clues=[
+        Clue("The use path", 2,
+             "Twenty years of boots, minimum. This is not a route somebody "
+             "found last spring — it is a route the ground has agreed to.\n\n"
+             "Fresh tread on top of all of it, one set, going down. Vibram, "
+             "size seven or eight. Nothing coming back up.",
+             "clue:path"),
+        Clue("The junction sign", 2,
+             "Brown fibreglass, routed lettering, park standard. OVERLOOK "
+             "1.4 with an arrow to the left.\n\n"
+             "There is no arrow to the right. There is a rectangle of "
+             "slightly darker fibreglass where a second panel used to be "
+             "bolted on, and two empty holes, and the holes have been "
+             "filled with silicone by somebody who did not want a third "
+             "panel going up.",
+             ""),
+    ],
+    exits=[
+        Exit(label="Right — down the use path", to="blowdown", mins=7,
+             travel="You take the use path down. Within a hundred yards the "
+                    "rhododendron closes and the trail noise stops, all of "
+                    "it at once, the way sound stops when a door shuts."),
+        Exit(label="Straight on toward the sink", to="basecamp", mins=8,
+             travel="You stay on the contour and follow the flagging tape "
+                    "somebody has already run in for you."),
+        Exit(label="Back down to the trailhead", to="trailhead", mins=6,
+             travel="Back down. It goes faster than it came."),
+    ],
+),
+
+"blowdown": Room(
+    id="blowdown", name="The Blowdown", depth=0, mx=2, my=1,
+    tags={"surface", "park"},
+    look=(
+        "Standing dead timber, forty acres of it. Hemlock, grey, barkless, "
+        "still upright — which is wrong. Blowdown falls. This did not fall.",
+        "It died standing and it died all together. No fire scar, no beetle "
+        "galleries under the bark you peel back, no wind-throw, no root "
+        "plates in the air. Forty acres of tree simply stopped, on some "
+        "particular day, and have been standing here since holding the "
+        "shape of the thing they used to be.",
+        "The ground under it is bare. Not thin — bare. Nothing has "
+        "colonised forty acres of full sun in however many years this has "
+        "been open, and the seedlings stop at the edge of it in a line you "
+        "could follow with your finger."
+    ),
+    first=(
+        "You stop in the middle of it and do the thing you were taught to "
+        "do in unfamiliar ground, which is stand still for one full minute "
+        "and let the place tell you what is in it.\n\n"
+        "It takes about fifteen seconds to work out what is wrong.\n\n"
+        "There is no sound. No birds, no squirrel scold, no insect, no "
+        "wind in forty acres of dead standing timber that ought to be "
+        "clacking like a xylophone. You can hear the blood in your own ear."
+    ),
+    clues=[
+        Clue("The silence", 3,
+             "You get the recorder out of your chest pocket and hold it up "
+             "and let it run for thirty seconds, because a thing you cannot "
+             "explain is a thing you document.\n\n"
+             "Later, in a motel room in Blakely, you will play it back and "
+             "hear thirty seconds of nothing, and then, at twenty-six "
+             "seconds, very far away and very clear, a sound like a large "
+             "door being pulled to.",
+             "clue:silence"),
+        Clue("A whitetail doe, dead", 3,
+             "Three weeks gone, maybe four. It is lying on its side in the "
+             "open with its legs out straight.\n\n"
+             "Nothing has been at it. No coyote, no vulture, no beetle, no "
+             "fly. In four weeks in September, in these mountains, a deer "
+             "goes back into the ground in eleven days and there is nothing "
+             "left of this one that has been touched.\n\n"
+             "It is pointed downhill. So are the other two you find without "
+             "looking very hard. All three are pointed downhill, at the "
+             "same thing, and you already know what is downhill of here.",
+             "clue:deer"),
+        Clue("Blazes on the dead trees", 4,
+             "Old ones. Cut with a hatchet, not painted — a hand's width of "
+             "bark taken off and the wood beneath gone silver.\n\n"
+             "They are chest height on a person shorter than you and they "
+             "are spaced for somebody walking a line in the dark. And they "
+             "are on dead trees, which means they were cut before the trees "
+             "died, which means they are older than forty acres of "
+             "impossible standing timber.\n\n"
+             "They go downhill in a straight line. Somebody blazed a route "
+             "to Wolf Sink and then somebody else, later, spent a lot of "
+             "effort taking the sign off a junction.",
+             "clue:blaze"),
+    ],
+    exits=[
+        Exit(label="Follow the blazes down", to="hollow", mins=8,
+             travel="You follow them down. It is easy walking, which is "
+                    "its own kind of wrong — forty acres of dead timber and "
+                    "not one stem across your path."),
+        Exit(label="Back up to the trail", to="ridge_trail", mins=7,
+             travel="Back up out of it. The birds start again about ten "
+                    "yards past the seedling line. You notice exactly where."),
+    ],
+),
+
+"hollow": Room(
+    id="hollow", name="Sander's Hollow", depth=0, mx=3, my=2,
+    tags={"surface", "park"},
+    look=(
+        "A bowl in the hillside, an acre of it, wet at the bottom. The last "
+        "of the light does not come down in here at all — it goes over the "
+        "top, and you are standing in the dark part of the evening about "
+        "forty minutes before anybody else is.",
+        "Somebody lived here. There is a chimney fall, a rectangle of "
+        "foundation stone under the leaf litter, and the collapsed square "
+        "of a springhouse over a run of water that still works.",
+        "And apple. Two trees of it, gone wild and barely holding on in the "
+        "shade, which nobody plants by accident. This was a place with a "
+        "family in it, and it is nine hundred yards from the sink, and it "
+        "is not on the park map either."
+    ),
+    clues=[
+        Clue("The chimney fall", 3,
+             "Dry-laid fieldstone, and one dressed lintel that somebody cut "
+             "properly with a chisel.\n\n"
+             "There is a date on the lintel. 1889. Under it, in a different "
+             "hand and a shallower cut, somebody has scratched a second "
+             "date the way you would scratch it with a nail, in a hurry, "
+             "not meaning it to last: 1911.",
+             "clue:1911"),
+        Clue("The springhouse", 3,
+             "The water still comes out cold enough to hurt. You put two "
+             "fingers in it out of habit.\n\n"
+             "It goes about eight feet and then it goes into the ground, "
+             "and the hole it goes into has been closed with a course of "
+             "the same fieldstone, mortared, by somebody who came back here "
+             "with a bucket of mortar a long time after the house fell in.\n\n"
+             "You do not close a spring. A spring is the reason you build "
+             "where you build. You close a spring when you have stopped "
+             "caring where the water goes and started caring what comes up "
+             "it.",
+             "clue:spring"),
+        Clue("The burying ground", 4,
+             "Eleven stones on the rise above the house, field-cut, most "
+             "of them illegible.\n\n"
+             "Four of them are small. That is ordinary for 1889 and you "
+             "make yourself remember that it is ordinary.\n\n"
+             "The last one is not from 1889. It is newer, and it is set "
+             "apart from the others by a good twenty feet, and it faces the "
+             "wrong way — every stone on this rise faces the house except "
+             "this one, which faces downhill, toward the sink. There is no "
+             "name on it. There is a date, 1911, and above the date "
+             "somebody has cut, very carefully, the word HERE.",
+             "clue:here"),
+    ],
+    exits=[
+        Exit(label="Down the last of it to the sink", to="basecamp", mins=9,
+             travel="You come out of the hollow onto a bench of level "
+                    "ground, and there are lights on it, and voices, and "
+                    "the ordinary sound of people doing a job."),
+        Exit(label="Back up through the dead timber", to="blowdown", mins=8,
+             travel="Back up. You go faster than the ground requires."),
+    ],
+),
+
+"basecamp": Room(
+    id="basecamp", name="Wolf Sink — Basecamp", depth=0, mx=4, my=3,
+    tags={"surface", "park", "signal"},
+    look=(
+        "Two vehicles they should not have been able to get up here, a "
+        "generator running a string of work lights, and a folding table "
+        "with a map on it held down at the corners by rocks.",
+        "Eleven people. Two of them are in oversuits and are not going "
+        "anywhere until somebody tells them to. The rest are standing "
+        "around the table being useful at a map that does not show the "
+        "thing they need it to show.",
+        "And thirty yards off, past the last of the light, the ground opens "
+        "up under a stand of hemlock and cold air comes out of it steadily "
+        "enough to move the ferns at the lip."
+    ),
+    first=(
+        "The generator makes it possible to pretend this is an operation "
+        "with a floor under it.\n\n"
+        "Nobody is going down that hole tonight except you. There is one "
+        "person on this ridge with a current cave rescue ticket and a "
+        "vertical qualification, and you have been that person since "
+        "05:20 this morning when somebody in Blakely read a permit."
+    ),
+    people=[
+        Person("Beau Trammell", "SAR team lead", [
+            ("\"Trammell. I've got the surface.\" He does not waste your "
+             "time. \"Eleven pages of survey from seventy-three, and the "
+             "surveyor's note says it's incomplete. Rigging's on you. "
+             "You've got sixty metres, two spares, and the set.\"",
+             "brief"),
+            ("\"Comms is going to be garbage. We'll hold the frequency and "
+             "we'll take whatever we get.\" He taps the map twice, on "
+             "nothing. \"Turnaround is oh-six-hundred. If I haven't heard "
+             "you by then I call Blakely and Blakely calls the state, and "
+             "then it's a recovery and nobody's going down after you for "
+             "nine days.\"",
+             ""),
+            ("\"One more thing and then I'll leave you alone.\"\n\n"
+             "He waits until the two in oversuits have gone back to the "
+             "table.\n\n"
+             "\"Sixty-eight. The one before this. They brought him out "
+             "alive on day four and he was fine — dehydrated, hypothermic, "
+             "fine. He gave a clean statement.\" Trammell looks at the "
+             "hole. \"Then he went home to Ohio and eleven days later his "
+             "wife of thirty years told the county he wasn't her husband. "
+             "Filed it formally. Wouldn't retract it. It's in the file "
+             "because somebody had to type it up.\"",
+             "clue:sixtyeight"),
+        ]),
+        Person("Rosalind Alcott", "Wren's mother", [
+            ("She is sixty-one and she is standing exactly at the edge of "
+             "the work lights, which is where they have put her, and she "
+             "has been standing there for six hours.\n\n"
+             "\"You're the one going down.\"\n\n"
+             "It is not a question, so you do not answer it like one. You "
+             "give her your name and your ticket and the turnaround time, "
+             "because people can hold facts when they cannot hold anything "
+             "else.",
+             "mother"),
+            ("\"They started coming here in the spring.\" She has her hands "
+             "in her coat pockets and she does not take them out. \"They "
+             "wouldn't say where. I thought there was somebody. You think "
+             "that, don't you, when they go quiet and they go every "
+             "weekend. You think there's somebody and you're pleased.\"",
+             ""),
+            ("\"Six weeks ago they came for Sunday and they were fine, and "
+             "they were funny, and they did the washing-up, and at the door "
+             "they said —\"\n\n"
+             "She stops and starts again, and gets it out level.\n\n"
+             "\"They said: if I ever come back and I'm not right, you'll "
+             "know, won't you. And I said don't be stupid. And they said "
+             "no, I mean it, you'll know. And I said yes. I said yes, "
+             "because it was the door and it was raining.\"",
+             "clue:promise"),
+        ]),
+        Person("Junie Vance", "Wren's partner", [
+            ("They are sitting in the open door of the second vehicle with "
+             "a cup of something they have not drunk any of.\n\n"
+             "\"I'm not family. They keep saying I can go home.\" They look "
+             "up. \"Eleven years. I'm not family.\"",
+             ""),
+            ("\"Wren caves. Caved. Twenty years, since school, and they are "
+             "the most careful person I have ever met about it — buddy "
+             "system, call-outs, the whole liturgy.\" Their hands are "
+             "steady on the cup. \"And then in March they started going "
+             "alone and they wouldn't discuss it. Wren doesn't refuse to "
+             "discuss things. Wren discusses things until you'd rather die.\"",
+             "clue:junie"),
+            ("\"They came back different every time. Not bad. Quieter. "
+             "Happier, actually, and that was worse.\"\n\n"
+             "They finally look at the hole.\n\n"
+             "\"Last month I asked what was down there. And they thought "
+             "about it properly, for a long time, like it was a real "
+             "question and they wanted to get it right. And then they said: "
+             "somebody who's been on their own for a very long time.\"",
+             "clue:somebody"),
+        ]),
+    ],
+    clues=[
+        Clue("The map on the table", 2,
+             "Eleven pages photocopied and taped together, dated 1973, and "
+             "somebody has drawn the modern trail on it in biro.\n\n"
+             "The survey stops at a chamber marked BELL. Past that the "
+             "draughtsman has written, in the neat block hand of a man "
+             "doing his job properly, SURVEY DISCONTINUED — and then, in "
+             "the same hand and much smaller, as though it were a technical "
+             "note: PARTY UNWILLING.",
+             "clue:map"),
+    ],
+    exits=[
+        Exit(label="Rig in. Go down.", to="sink", mins=0, hazard="descend",
+             need="ready",
+             deny="not until you have your brief and have spoken to the "
+                  "family"),
+        Exit(label="Back up toward the hollow", to="hollow", mins=9,
+             travel="You walk back up out of the lights for a minute, "
+                    "because you want to hear what the ridge sounds like "
+                    "without a generator on it."),
+    ],
+),
+}
+
+ROOMS.update(PARK)
+
+
+# --------------------------------------------------------------------------
+#  PAYOFFS — what Act One bought you.
+#
+#  {room_id: {flag: line}}. Shown once, on first arrival, if you did the
+#  work up top. None of it is required and none of it changes a mechanic —
+#  it changes what you understand while a mechanic is happening to you.
+# --------------------------------------------------------------------------
+
+PAYOFFS = {
+
+"bell": {
+    "clue:map": "This is where the 1973 survey stops. You stand in the last "
+                "room eleven pages of paper are willing to admit to, and "
+                "you think about a draughtsman with a good hand writing "
+                "PARTY UNWILLING and then going home to his tea.",
+},
+
+"stream": {
+    "clue:spring": "Downstream is north-west. Downstream, over your head "
+                   "and nine hundred yards of it, is a springhouse in a "
+                   "hollow with a course of mortared fieldstone in the "
+                   "mouth of it. This water and that water are the same "
+                   "water. Somebody worked that out before you did, and "
+                   "then went and got mortar.",
+},
+
+"roost": {
+    "clue:deer": "Three deer lying in the open pointed downhill at this. "
+                 "Untouched, in September, for a month. Whatever cleared "
+                 "the ceiling of this room did not stop at the ceiling of "
+                 "this room.",
+},
+
+"pack": {
+    "clue:register": "Nine entries in seven months and no exit times. This "
+                     "pack is packed for a day trip by somebody who had "
+                     "made this exact trip eight times before and had "
+                     "stopped believing the eighth one counted.",
+},
+
+"squeeze": {
+    "clue:promise": "If I ever come back and I'm not right, you'll know, "
+                    "won't you.\n\nWren said that at a door, in the rain, "
+                    "six weeks ago, and their mother said yes because it "
+                    "was the door and it was raining. You take your helmet "
+                    "off and you go through the hole anyway.",
+},
+
+"long_room": {
+    "clue:ivy": "They said morning back like they were being polite to "
+                "somebody they had already said it to. Like Ivy Crenshaw "
+                "was the second person to say it to them that morning, on "
+                "a mile of switchback with nobody else on it.",
+},
+
+"ladder": {
+    "clue:1911": "1911 is cut into a lintel in Sander's Hollow in a hand "
+                 "in a hurry, and it is on a stone twenty feet from eleven "
+                 "others facing the wrong way with HERE cut above it, and "
+                 "it is written in lamp-black on this wall beside a date "
+                 "from this year in the same hand and the same black.",
+    "clue:blaze": "Hatchet blazes, chest height on somebody shorter than "
+                  "you, cut before forty acres of hemlock died standing, "
+                  "running downhill in a straight line to a hole with no "
+                  "sign on the junction. Somebody wanted this findable. "
+                  "Somebody else, later, did not.",
+},
+
+"deep": {
+    "clue:somebody": "You asked what was down here, Junie said, and Wren "
+                     "thought about it for a long time because they wanted "
+                     "to get it right.\n\nSomebody who's been on their own "
+                     "for a very long time.",
+    "clue:sixtyeight": "Day four, in sixty-eight, they brought a man out "
+                       "of this alive and dehydrated and fine, and he gave "
+                       "a clean statement, and eleven days later his wife "
+                       "of thirty years told the county he was not her "
+                       "husband and would not retract it.",
+},
+}
+
+
+# --------------------------------------------------------------------------
+#  PARK AMBIENCE — Act One. The ridge, while it still has light on it.
+# --------------------------------------------------------------------------
+
+PARK_AMBIENCE = [
+    "Somewhere below, a vehicle door, and then nothing.",
+    "The hemlocks move all together and then stop all together.",
+    "A wood thrush, a long way off, giving the evening call.",
+    "The light drops another notch. You can watch it happen.",
+    "Something goes through the laurel about forty yards out, unhurried.",
+    "Your radio hisses once, on no channel you have selected.",
+]
