@@ -91,6 +91,7 @@ class Scene:
     palette: str = "cave"       # cave | dusk | night
     tilt: float = 0.0           # camera pitch, radians, negative looks down
     sky: float = 0.0            # sky radiance (surface scenes)
+    day: float = 0.0            # 0-1, how much of the day is left
     var: float = 0.0            # decorrelates the rock between rooms
 
 
@@ -303,9 +304,12 @@ def _render(s: Scene, light: float, w: int, h: int) -> Image.Image:
         sky_amt = (0.45 + 0.55 * ny) * sky_occ
         sun = np.clip(nx * -0.70 + ny * 0.34 + nz * -0.62, 0.0, 1.0)
         lit = albedo * s.sky * (0.85 * sky_amt + 0.70 * sun ** 1.6 * sky_occ)
+        # A headlamp switched on in daylight does not brighten the hillside;
+        # it puts a pale coin on the ground in front of your boots. So the
+        # day shortens the lamp's reach rather than dimming it.
         head = np.clip(-(dx * nx + dy * ny + dz * nz), 0.0, 1.0)
-        lamp_p = max(0.0, light - s.sky * 0.8) * 2.2
-        lit = lit + albedo * head * lamp_p / (1.0 + (t / s.reach) ** 2 * 2.2)
+        reach = max(0.6, s.reach * (1.0 - 0.86 * s.day))
+        lit = lit + albedo * head * light * 2.2 / (1.0 + (t / reach) ** 2 * 2.2)
     else:
         reach = s.reach * (0.32 + 0.68 * light)
         diff = np.clip(-(dx * nx + dy * ny + dz * nz), 0.0, 1.0)
@@ -462,5 +466,5 @@ def frame(room_id, band, sky, w, h):
     """The lamp's-eye view of a room. Cached; safe to call from a thread."""
     s = SCENES.get(room_id, _DEFAULT)
     if s.sky:
-        s = replace(s, sky=s.sky * _SKY_STEPS[sky])
+        s = replace(s, sky=s.sky * _SKY_STEPS[sky], day=_SKY_STEPS[sky])
     return _render(s, _LIGHT_STEPS[band], w, h)

@@ -36,7 +36,8 @@ class Game:
         self.said = {}             # person name -> beats already given
         self.here = "trailhead"
         self.lamp = 100.0
-        self.dim = False
+        self.lamp_on = False       # Act One starts in daylight; you switch it
+        self.dim = False            # on yourself, or the dark does it for you
         self.air = 100.0
         self.rope = ROPE_TOTAL
         self.cells = 0
@@ -75,7 +76,8 @@ class Game:
             d = self.daylight
             if d >= 55: return 3
             if d >= 25: return 2
-            return 1        # after that it is your headlamp, and it is enough
+            # past that the hillside is only as big as your lamp makes it
+            return 2 if self.lamp_on else 1
         r = self.reach
         if r >= 55: return 3
         if r >= 25: return 2
@@ -145,9 +147,9 @@ class Game:
                     2: "The light goes flat and shadowless, all at once, "
                        "the way it does. You have maybe half an hour of "
                        "usable evening and then you have a headlamp.",
-                    1: "That is the day gone. You put your helmet on and "
-                       "switch on the lamp you are going to need at sixty "
-                       "metres, and start spending it here instead."
+                    1: "That is the day gone. You are standing on a dark "
+                       "hillside with an unlit lamp on your helmet and "
+                       "nothing to read the ground by.  [F]"
                 }[self.layers]))
             return ev
 
@@ -477,6 +479,7 @@ class Game:
             return []
         if h == "descend":
             self.phase = "cave"
+            self.lamp_on = True
             self.minutes = 0
             return [
                 ("title", "THE GROUND SEARCH"),
@@ -534,6 +537,22 @@ class Game:
         ev = self._burn(1)
         if self.ending: return ev
         return ev + self.describe(full=True)
+
+    def toggle_lamp(self):
+        """Act One only. Underground the lamp is why you are still alive."""
+        if self.phase == "cave":
+            return [("sys", "The lamp stays on. That is not a decision you "
+                            "get to make at sixty metres.")]
+        self.lamp_on = not self.lamp_on
+        if not self.lamp_on:
+            return [("sys", "You switch the lamp off. Your eyes take a "
+                            "while to give the evening back to you.")]
+        if self.daylight >= 25:
+            return [("sys", "You switch the lamp on. In this much daylight "
+                            "it puts a pale coin on the ground in front of "
+                            "your boots and tells you nothing.")]
+        return [("sys", "You switch the lamp on, and the hillside shrinks "
+                        "to the eleven feet of it you can see.")]
 
     def toggle_dim(self):
         self.dim = not self.dim

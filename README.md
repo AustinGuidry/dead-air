@@ -38,12 +38,15 @@ the same cave noises. `--help` lists the options.
 | `L`   | listen |
 | `R`   | radio basecamp |
 | `X`   | look again |
+| `F`   | switch the helmet lamp on or off |
 | `D`   | stop the beam down — half the burn rate, half the sight |
 | `C`   | swap in a spare cell |
 | `N`   | new run |
 | `Q`   | quit |
 
-`D` and `C` are underground only.
+`F` is for above ground — you start in daylight with the lamp off, and the
+evening does not wait for you. `D` and `C` are underground only, where the
+lamp is not something you get to switch off.
 
 Take your time in the first few rooms. The cave teaches you what it wants
 before it asks you for anything.

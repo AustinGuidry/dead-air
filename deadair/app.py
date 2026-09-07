@@ -29,7 +29,7 @@ CAVE_ROOMS = [r for r in ROOMS.values()
               if "park" not in r.tags and r.id not in ("drowned", "stay")]
 CAVE_IDS = {r.id for r in CAVE_ROOMS}
 
-VIEW_ROWS = 13
+PIXEL_BUDGET = 112_000   # about a second of raymarching per frame
 
 
 def bar(pct, width=14, colour="#f0b46b"):
@@ -50,7 +50,9 @@ class DeadAir(App):
     }
     #topbar.hunted { background: #3d1512; color: #ff8f7c; }
     #viewport {
-        height: 13; background: #080807;
+        /* content-box so the separator rule does not eat into the third */
+        box-sizing: content-box;
+        height: 34%; min-height: 8; background: #080807;
         border-bottom: solid #2a2723;
     }
     #viewport.gone { display: none; }
@@ -83,6 +85,7 @@ class DeadAir(App):
         Binding("x", "look", "look"),
         Binding("d", "dim", "dim beam"),
         Binding("c", "cell", "swap cell"),
+        Binding("f", "lamp", "lamp"),
         Binding("n", "restart", "new run"),
         Binding("q", "quit", "quit"),
     ]
@@ -145,17 +148,39 @@ class DeadAir(App):
         cols, rows = view.size.width, view.size.height
         if cols < 8 or rows < 3:
             return
-        # a cell is roughly twice as tall as it is wide; round the pixel size
-        # off so that the render cache actually gets hits
-        w = max(256, min(608, (cols * 7 // 16) * 16))
-        h = max(96, min(224, (rows * 15 // 8) * 8))
-        band = art.light_band(100.0 if g.phase == "park" else g.reach)
-        sky = art.sky_band(g.daylight) if g.phase == "park" else 4
+        w, h = self._pixels(cols, rows)
+        if g.phase == "park":
+            # the lamp is off until you switch it on, and the picture has to
+            # agree with that or you get a beam in full daylight
+            band = art.light_band(100.0 if g.lamp_on else 0.0)
+            sky = art.sky_band(g.daylight)
+        else:
+            band, sky = art.light_band(g.reach), 4
         key = (g.here, band, sky, w, h)
         if key == self._view_key:
             return
         self._view_key = key
         self._draw(*key)
+
+    @staticmethod
+    def _pixels(cols, rows):
+        """Pixel size to render for a viewport of `cols` x `rows` cells.
+
+        A cell is roughly twice as tall as it is wide, so the aspect that
+        fills the viewport undistorted is cols : rows*2. Sizes are rounded
+        off so the render cache actually gets hits, and held under a pixel
+        budget — a wide short viewport would otherwise ask for a frame that
+        takes several seconds to raymarch.
+        """
+        def fit(width):
+            width = max(256, min(960, (width // 32) * 32))
+            return width, max(96, min(320,
+                              int(round(width * rows * 2 / cols / 8)) * 8))
+
+        w, h = fit(cols * 6)
+        if w * h > PIXEL_BUDGET:
+            w, h = fit(int(w * (PIXEL_BUDGET / (w * h)) ** 0.5))
+        return w, h
 
     @work(thread=True, exclusive=True, group="view")
     def _draw(self, room, band, sky, w, h):
@@ -172,14 +197,23 @@ class DeadAir(App):
             return
         # draw the rooms you could walk into next while nothing else is
         # happening, so that moving does not sit on a stale frame
-        self._prefetch(self._neighbours())
+        self._prefetch(self._upcoming())
 
-    def _neighbours(self):
+    def _upcoming(self):
+        """Frames worth having ready before they are asked for."""
         if not self._view_key:
             return []
-        _, band, sky, w, h = self._view_key
-        return [(x.to, band, sky, w, h) for x in self.game.room.exits
+        here, band, sky, w, h = self._view_key
+        keys = [(x.to, band, sky, w, h) for x in self.game.room.exits
                 if x.to in art.SCENES]
+        if self.game.phase == "park":
+            # F re-lights this same room, and the light keeps failing, so
+            # both are one keystroke or a few minutes away
+            other = art.light_band(0.0 if self.game.lamp_on else 100.0)
+            keys.insert(0, (here, other, sky, w, h))
+            if sky > 0:
+                keys.insert(1, (here, band, sky - 1, w, h))
+        return keys
 
     @work(thread=True, exclusive=True, group="prefetch")
     def _prefetch(self, keys):
@@ -235,8 +269,10 @@ class DeadAir(App):
             f"{gone % 60:02d}[/]",
             f"[#8d867c]SIGNAL[/] {bar(100, 14, '#8fc98f')} {'strong':>5}",
         ]
-        if g.daylight <= 0:
-            lines.append("[#5a554e]      headlamp on[/]")
+        lamp = ("[#f0b46b]on[/]" if g.lamp_on else "[#5a554e]off[/]")
+        warn = ("  [#dd6a58]you need it[/]"
+                if not g.lamp_on and g.daylight < 25 else "")
+        lines.append(f"[#8d867c]LAMP  [/] [#5a554e]helmet lamp[/] {lamp}{warn}")
         self.query_one("#meters", Static).update("\n".join(lines))
 
         asked = sum(min(self.game.said.get(p.name, 0), len(p.beats))
@@ -380,7 +416,7 @@ class DeadAir(App):
         rows.append("")
         if g.phase == "park":
             rows.append("[#8d867c] L[/] listen   [#8d867c]R[/] radio   "
-                        "[#8d867c]X[/] look again")
+                        "[#8d867c]X[/] look again   [#8d867c]F[/] lamp")
         else:
             rows.append("[#8d867c] L[/] listen   [#8d867c]R[/] radio   "
                         "[#8d867c]X[/] look again   [#8d867c]D[/] dim beam   "
@@ -430,6 +466,10 @@ class DeadAir(App):
     def action_dim(self):
         if not self.game.ending and self.game.phase == "cave":
             self.after(self.game.toggle_dim())
+
+    def action_lamp(self):
+        if not self.game.ending:
+            self.after(self.game.toggle_lamp())
 
     def action_cell(self):
         if not self.game.ending and self.game.phase == "cave":

@@ -12,6 +12,11 @@ of it. Talking costs 3 minutes, examining costs 2-4, walking costs 6-9. Close
 work (a clue costing 4 minutes) cannot be done below 25% daylight at all, so
 the ground you cover early is ground you actually get.
 
+The helmet lamp starts **off** — it is daylight, and switching it on early
+tells you nothing. `F` toggles it, and once the day is gone it buys back a
+description layer the dusk took away. Underground `F` is refused: the lamp is
+why you are alive down there.
+
 This is deliberate teaching. The park runs exactly the mechanic the cave will
 later charge you for — a light budget that buys you description — using a
 resource you cannot die from spending. By the time the lamp starts draining

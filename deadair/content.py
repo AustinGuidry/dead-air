@@ -521,6 +521,7 @@ ROOMS = {
         "rated for eight.\n\n"
         "Behind you, from the direction you came, at a distance you could "
         "walk in ninety seconds, someone says your name.\n\n"
+        "Not Brooks. Garret.\n\n"
         "It is not Wren's voice. It is not anyone's voice. It is the voice "
         "you use when you are alone and reading a map out loud."
     ),
@@ -573,7 +574,7 @@ AMBIENCE = {
         "A radio, very faint, playing nothing.",
         "Something says half a word and thinks better of it.",
         "The drips stop. All of them. For nine seconds.",
-        "Your name, at conversational volume, from the direction of the exit.",
+        "Garret, at conversational volume, from the direction of the exit.",
         "A light passes across the far wall. You have not moved your head.",
     ],
 }
@@ -669,6 +670,8 @@ PARK = {
         "colour of a struck match and running out fast."
     ),
     first=(
+        "Your name is Garret Brooks and nobody has used the Garret since "
+        "school.\n\n"
         "Wren Alcott. Twenty-six. Solo, which is the whole problem.\n\n"
         "Nineteen hours overdue on a permit that says Wolf Sink, and Wolf "
         "Sink is a name that made three people at the ranger station go "
@@ -679,7 +682,7 @@ PARK = {
     ),
     people=[
         Person("Ranger Dolan Pace", "park law enforcement", [
-            ("\"Dolan Pace. I took the call.\" He shakes your hand like it "
+            ("\"Brooks? Dolan Pace. I took the call.\" He shakes your hand like it "
              "is a thing he has decided to do rather than a thing he does. "
              "\"Vehicle's been here since oh-seven yesterday. Permit's in "
              "the box. Everything by the book, right up until it wasn't.\"",
@@ -948,7 +951,7 @@ PARK = {
     ),
     people=[
         Person("Beau Trammell", "SAR team lead", [
-            ("\"Trammell. I've got the surface.\" He does not waste your "
+            ("\"Brooks. Trammell, I've got the surface.\" He does not waste your "
              "time. \"Eleven pages of survey from seventy-three, and the "
              "surveyor's note says it's incomplete. Rigging's on you. "
              "You've got sixty metres, two spares, and the set.\"",
@@ -978,7 +981,8 @@ PARK = {
              "has been standing there for six hours.\n\n"
              "\"You're the one going down.\"\n\n"
              "It is not a question, so you do not answer it like one. You "
-             "give her your name and your ticket and the turnaround time, "
+             "give her your name — Brooks, just Brooks — and your ticket "
+             "and the turnaround time, "
              "because people can hold facts when they cannot hold anything "
              "else.",
              "mother"),
