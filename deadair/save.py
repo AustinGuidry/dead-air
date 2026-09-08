@@ -6,12 +6,14 @@ that kill you down there are not the kind you see coming, and a player who
 has to remember to save is a player who loses an hour of careful rope work to
 a closed laptop.
 
-The file lives under XDG_STATE_HOME. A half-finished run is neither config
-nor a cache, and that is the drawer for things that are neither.
+A half-finished run is neither config nor a cache, and every platform has a
+different drawer for things that are neither. The file goes in whichever one
+this machine uses.
 """
 
 import json
 import os
+import sys
 from pathlib import Path
 
 from .state import Game
@@ -19,9 +21,25 @@ from .state import Game
 VERSION = 1
 
 
+def state_root():
+    """The directory this platform keeps application state in.
+
+    XDG_STATE_HOME wins wherever it is set, including on Windows, because
+    someone who has gone to the trouble of setting it means it.
+    """
+    override = os.environ.get("XDG_STATE_HOME")
+    if override:
+        return Path(override)
+    if sys.platform == "win32":
+        return Path(os.environ.get("LOCALAPPDATA")
+                    or Path.home() / "AppData" / "Local")
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support"
+    return Path.home() / ".local" / "state"
+
+
 def path():
-    root = os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state"
-    return Path(root) / "deadair" / "save.json"
+    return state_root() / "deadair" / "save.json"
 
 
 def write(game, seed=None):

@@ -77,7 +77,7 @@ goes out on the same schedule the dusk does.
     deadair/content.py   the park, the cave, the prose, the tables — pure data
     deadair/state.py     resources, hazards, dread, endings — pure logic
     deadair/art.py       scene geometry and the renderer — pure rendering
-    deadair/save.py      the one save slot, under XDG_STATE_HOME
+    deadair/save.py      the one save slot, in this platform's state dir
     deadair/app.py       Textual widgets, meters, viewport, the survey map
 
 Content is fully separated from mechanics, so writing is edited without
@@ -107,6 +107,10 @@ read — a save that names a room the cave no longer has is rejected rather
 than half-loaded. The rng state travels with it, so reloading is not a way
 to make the cave pick a different one of your own footsteps to play back at
 you. `save.VERSION` retires the format outright when the fields change.
+
+`save.state_root()` picks the directory: `%LOCALAPPDATA%` on Windows,
+`~/Library/Application Support` on macOS, `~/.local/state` otherwise, and
+whatever `XDG_STATE_HOME` says wherever it is set, on any of them.
 
 `App.autosave()` runs after every action, because nothing that kills you
 down there announces itself first, and the file is written to a temporary

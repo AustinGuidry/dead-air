@@ -72,9 +72,11 @@ after every action, so quitting and closing the terminal are the same thing as
 putting it down. There is one slot and it is the run you are in. Finishing a
 run, however it finishes, clears it.
 
-The file is `$XDG_STATE_HOME/deadair/save.json`, which is
-`~/.local/state/deadair/save.json` unless you have said otherwise. Deleting it
-is a supported way to start over.
+The file goes wherever your machine keeps application state: on Linux
+`~/.local/state/deadair/save.json`, on macOS `~/Library/Application
+Support/deadair/save.json`, on Windows `%LOCALAPPDATA%\deadair\save.json`.
+Setting `XDG_STATE_HOME` overrides all three. Deleting the file is a supported
+way to start over.
 
 Take your time in the first few rooms. The cave teaches you what it wants
 before it asks you for anything.
