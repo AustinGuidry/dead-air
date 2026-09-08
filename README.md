@@ -76,6 +76,9 @@ Mechanics, escalation, module layout, and tuning constants are documented in
 [DESIGN.md](DESIGN.md) — **that file spoils the game**, so read it only if you
 are here to work on the code rather than to play.
 
+[RELEASING.md](RELEASING.md) covers cutting a version. It does not spoil
+anything.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
