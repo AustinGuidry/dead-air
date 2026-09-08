@@ -14,21 +14,37 @@ same reason the prose does.
 
 Built with [Textual](https://textual.textualize.io/). Runs in kitty — the
 graphics use the kitty protocol, and fall back to sixel and then to Unicode
-half-blocks elsewhere.
+half-blocks elsewhere, so it plays in any terminal and looks best in one that
+can draw. Ghostty, WezTerm and Konsole speak the protocol too.
 
-## Setup
+## Install
 
-    python3 -m venv .venv
-    .venv/bin/pip install -r requirements.txt
+Needs Python 3.12 or newer. [pipx](https://pipx.pypa.io) is the tidiest way —
+it keeps the game and its dependencies in their own environment and puts
+`deadair` on your PATH:
 
-## Play
+    pipx install git+https://github.com/AustinGuidry/dead-air
 
-    ./play
+Or with plain pip, ideally into a virtualenv:
 
-Or: `.venv/bin/python -m deadair`
+    pip install git+https://github.com/AustinGuidry/dead-air
+
+Then, from anywhere:
+
+    deadair
 
 Pass `--seed N` to fix the run's coin-flips — the same seed always gives you
 the same cave noises. `--help` lists the options.
+
+## Running from a clone
+
+If you would rather have the source to hand:
+
+    git clone https://github.com/AustinGuidry/dead-air
+    cd dead-air
+    python3 -m venv .venv
+    .venv/bin/pip install -r requirements.txt
+    ./play
 
 ## Controls
 

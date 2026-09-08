@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "deadair"
+version = "1.0.0"
+description = "A first-person cave-horror game for the terminal, with scenes raymarched at runtime and lit by your own lamp."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Austin Guidry" }]
+keywords = ["game", "terminal", "tui", "horror", "textual", "interactive-fiction"]
+
+# textual-image and numpy 2.x both floor at 3.12; the game's own code is
+# happy much further back, but there is no point claiming support we cannot
+# install.
+requires-python = ">=3.12"
+
+dependencies = [
+    "textual>=8.0",
+    "textual-image>=0.13",
+    "pillow>=10.0",
+    "numpy>=1.26",
+]
+
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Games/Entertainment",
+]
+
+[project.urls]
+Homepage = "https://github.com/AustinGuidry/dead-air"
+Source = "https://github.com/AustinGuidry/dead-air"
+Issues = "https://github.com/AustinGuidry/dead-air/issues"
+
+# This is what puts `deadair` on the player's PATH. No wrapper script needed.
+[project.scripts]
+deadair = "deadair.app:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["deadair"]
+
+[tool.hatch.build.targets.sdist]
+include = ["deadair", "README.md", "DESIGN.md", "LICENSE", "play"]
