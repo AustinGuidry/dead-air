@@ -1,0 +1,104 @@
+# Publish to PyPI on a version tag, using Trusted Publishing.
+#
+# No API token lives anywhere. GitHub mints a short-lived OIDC credential for
+# this specific workflow in this specific repository, and PyPI accepts it
+# because of the publisher entry configured on the project page.
+#
+# To cut a release:
+#     bump `version` in pyproject.toml
+#     git commit -am "Release 1.0.1"
+#     git tag -a v1.0.1 -m "DEAD AIR 1.0.1"
+#     git push origin main --follow-tags
+#
+# A PyPI version number can never be reused, so this builds, checks and plays
+# the artefact before it uploads anything.
+
+name: Publish
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:      # lets you dry-run the build without tagging
+
+jobs:
+  build:
+    name: Build and check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Refuse to ship a tag that disagrees with pyproject
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          packaged=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "tag=$tag  pyproject=$packaged"
+          if [ "$tag" != "$packaged" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match pyproject version $packaged"
+            exit 1
+          fi
+
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+
+      - name: Check the metadata PyPI will render
+        run: python -m twine check --strict dist/*
+
+      - name: Install the wheel and make sure the game actually runs
+        run: |
+          python -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install dist/*.whl
+          /tmp/smoke/bin/deadair --help
+          /tmp/smoke/bin/python - <<'PY'
+          # exercise the engine headlessly: a full run, park through to an ending
+          from deadair.state import Game
+          from deadair import art
+          g = Game(1)
+          def pick(want):
+              for i, (k, l, ok, why, o) in enumerate(g.choices()):
+                  if want.lower() in l.lower() and ok:
+                      return i
+          for w in ["trail up the ridge", "Straight on toward"]:
+              g.act(pick(w))
+          for w in ["Trammell", "Rosalind"]:
+              i = pick(w)
+              while i is not None:
+                  g.act(i); i = pick(w)
+          assert "ready" in g.flags, "cannot descend after the brief"
+          g.act(pick("Rig in"))
+          assert g.phase == "cave" and g.here == "sink", g.here
+          for w in ["Go in feet-first", "Push on through", "Back into the Letterbox",
+                    "Reverse out to the sink"]:
+              g.act(pick(w))
+          assert g.ending == "OUT_ALONE", g.ending
+          g.ending_body(); g.ending_note()
+          assert len(art.SCENES) >= 23, len(art.SCENES)
+          art.frame("bell", 5, 4, 160, 64)          # the renderer really renders
+          print("smoke OK:", g.ending, g.surface_clock())
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write        # this is what mints the OIDC credential
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
