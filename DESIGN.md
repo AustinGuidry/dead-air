@@ -77,6 +77,7 @@ goes out on the same schedule the dusk does.
     deadair/content.py   the park, the cave, the prose, the tables — pure data
     deadair/state.py     resources, hazards, dread, endings — pure logic
     deadair/art.py       scene geometry and the renderer — pure rendering
+    deadair/save.py      the one save slot, under XDG_STATE_HOME
     deadair/app.py       Textual widgets, meters, viewport, the survey map
 
 Content is fully separated from mechanics, so writing is edited without
@@ -92,6 +93,26 @@ and `clues` (a `Clue` costing minutes and granting a flag), and are tagged
 `Game.choices()` returns people, then clues, then exits as one numbered list;
 in Act Two the first two are empty and it collapses to the exits, which is
 what it always was.
+
+## The menu and the save slot
+
+`deadair` opens on a menu, not in a cave: RESUME (when there is a run to
+resume), NEW RUN, CONTROLS, QUIT. `ESC` reopens it mid-run. Nothing starts
+until the player picks something — `App._started` is what the rest of the
+code checks before it believes `App.game` is a real run.
+
+`Game.snapshot()` returns the whole run as JSON-able data and
+`Game.restore()` builds one back, returning `None` for anything it cannot
+read — a save that names a room the cave no longer has is rejected rather
+than half-loaded. The rng state travels with it, so reloading is not a way
+to make the cave pick a different one of your own footsteps to play back at
+you. `save.VERSION` retires the format outright when the fields change.
+
+`App.autosave()` runs after every action, because nothing that kills you
+down there announces itself first, and the file is written to a temporary
+name and renamed over the old one so a crash mid-write cannot eat the run.
+An ending clears the slot: a finished run is a story, not a save.
+
 
 ## The renderer
 

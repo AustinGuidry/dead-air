@@ -30,6 +30,7 @@ CLOSE_WORK = 4             # a clue this slow is close work, and
 
 class Game:
     def __init__(self, seed=None):
+        self.seed = seed           # kept so a new run can repeat this one
         self.rng = random.Random(seed)
         self.phase = "park"        # "park" (Act One) | "cave" (Act Two)
         self.park_minutes = 0
@@ -592,6 +593,55 @@ class Game:
         return [("good", "You change the cell in the dark, by feel, with "
                          "the old one held in your teeth. The light comes "
                          "back and the room is exactly where you left it.")] + ev
+
+
+    # -- saving -------------------------------------------------------------
+
+    SAVED = ("phase", "park_minutes", "here", "lamp", "lamp_on", "dim",
+             "air", "rope", "cells", "minutes", "ending", "pursuit",
+             "_last_sound")
+
+    def snapshot(self):
+        """The whole run, as data a JSON file will hold.
+
+        The rng state goes in with it, so a resumed run flips the coins it
+        was always going to flip. Reloading is not a way to make the cave
+        pick a different one of your own footsteps to play back at you.
+        """
+        data = {k: getattr(self, k) for k in self.SAVED}
+        data["said"] = dict(self.said)
+        data["visited"] = sorted(self.visited)
+        data["flags"] = sorted(self.flags)
+        data["trail"] = list(self.trail)
+        ver, keys, gauss = self.rng.getstate()
+        data["rng"] = [ver, list(keys), gauss]
+        return data
+
+    @classmethod
+    def restore(cls, data):
+        """A Game from snapshot() data, or None if the data is not one.
+
+        Anything unreadable comes back as None rather than as a half-built
+        run: a save from an older cave would put you in a room that no
+        longer has the exit you were counting on.
+        """
+        try:
+            g = cls(data.get("seed"))
+            for k in cls.SAVED:
+                setattr(g, k, data[k])
+            g.said = {str(n): int(v) for n, v in data["said"].items()}
+            g.visited = set(data["visited"])
+            g.flags = set(data["flags"])
+            g.trail = [r for r in data["trail"]]
+            ver, keys, gauss = data["rng"]
+            g.rng.setstate((int(ver), tuple(int(k) for k in keys), gauss))
+        except (AttributeError, KeyError, TypeError, ValueError):
+            return None
+        if g.phase not in ("park", "cave") or g.here not in ROOMS:
+            return None
+        if not all(r in ROOMS for r in g.visited | set(g.trail)):
+            return None
+        return g
 
 
 # --------------------------------------------------------------------------

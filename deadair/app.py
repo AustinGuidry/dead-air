@@ -6,9 +6,10 @@ from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.screen import Screen
 from textual.widgets import Static
 
-from . import art
+from . import art, save
 from .content import ROOMS
 from .state import Game, ROPE_TOTAL, DAYLIGHT_TOTAL, PARK_START
 
@@ -31,12 +32,152 @@ CAVE_IDS = {r.id for r in CAVE_ROOMS}
 
 PIXEL_BUDGET = 112_000   # about a second of raymarching per frame
 
+# What a resumed run says instead of the opening. It re-describes the room
+# and charges nothing for it: picking the game back up is not an action, and
+# the clock has already had its minute out of you.
+RESUMED = {
+    "park": "You pick it up where you put it down. The light is exactly "
+            "where you left it, which is to say lower than you would like.",
+    "cave": "You pick it up where you put it down. The cave kept your place.",
+}
+
 
 def bar(pct, width=14, colour="#f0b46b"):
     pct = max(0.0, min(100.0, pct))
     n = int(round(pct / 100 * width))
     return (f"[{colour}]{BAR_FULL * n}[/]"
             f"[#3a3630]{BAR_EMPTY * (width - n)}[/]")
+
+
+
+TITLE_ART = [
+    "███  ████  ██  ███      ██  ███ ███ ",
+    "█  █ █    █  █ █  █    █  █  █  █  █",
+    "█  █ ███  ████ █  █    ████  █  ███ ",
+    "█  █ █    █  █ █  █    █  █  █  █ █ ",
+    "███  ████ █  █ ███     █  █ ███ █  █",
+]
+
+FRONT_CSS = """
+Screen { background: #0d0c0b; color: #cdc6bb; align: center middle; }
+#card { width: auto; height: auto; padding: 1 4; }
+/* auto-width only propagates if the children ask for it too */
+#card Static { width: auto; height: auto; }
+#art { color: #f0b46b; margin: 0 0 1 0; }
+#blurb { color: #6d675e; margin: 0 0 2 0; }
+#items { height: auto; }
+#foot { color: #4a453f; margin: 2 0 0 0; }
+"""
+
+
+class Controls(Screen):
+    """The key list. Reachable before you commit to anything."""
+
+    CSS = FRONT_CSS
+
+    ROWS = [
+        ("1-9", "take the numbered action — someone to talk to, "
+                "something to look at, or a way on"),
+        ("L", "listen"),
+        ("R", "radio basecamp"),
+        ("X", "look again"),
+        ("F", "switch the helmet lamp on or off — above ground only"),
+        ("D", "stop the beam down: half the burn, half the sight"),
+        ("C", "swap in a spare cell"),
+        ("N", "abandon this run and start a new one"),
+        ("ESC", "back to this menu — the run keeps where it stands"),
+        ("Q", "quit — the run keeps where it stands"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        rows = ["[#f0b46b]CONTROLS[/]", ""]
+        for key, what in self.ROWS:
+            rows.append(f"  [bold #f0b46b]{key:>5}[/]   [#cdc6bb]{what}[/]")
+        rows += ["",
+                 "[#6d675e]You start above ground in daylight with the lamp "
+                 "off, and the evening does not wait for you.[/]",
+                 "[#6d675e]D and C are for underground, where the lamp is "
+                 "not something you get to switch off.[/]",
+                 "",
+                 "[#6d675e]The game saves itself after every action. There "
+                 "is one slot, and it is this run.[/]"]
+        with Vertical(id="card"):
+            yield Static("\n".join(rows), id="items")
+            yield Static("any key to go back", id="foot")
+
+    def on_key(self, event):
+        """Any key at all, except the one that means stop the program."""
+        if event.key == "ctrl+c":
+            return
+        event.stop()
+        self.dismiss()
+
+
+class Menu(Screen):
+    """What you get when you type `deadair`, instead of a cave."""
+
+    CSS = FRONT_CSS
+    BINDINGS = [
+        *[Binding(str(n), f"pick({n - 1})", str(n), show=False)
+          for n in range(1, 6)],
+        Binding("escape", "resume_run", "back", show=False),
+        Binding("q", "pick_quit", "quit", show=False),
+    ]
+
+    def __init__(self, saved=None, in_run=False):
+        super().__init__()
+        self.saved = saved      # the run on disk, as a Game, or None
+        self.in_run = in_run    # opened mid-run: escape goes back to it
+
+    def options(self):
+        out = []
+        live = False
+        if self.in_run:
+            game = self.app.game
+            live = not game.ending
+            out.append(("back", "BACK TO THE RUN",
+                        save.describe(game) if live else "this one is over"))
+        elif self.saved is not None:
+            live = True
+            out.append(("resume", "RESUME", save.describe(self.saved)))
+        out.append(("new", "NEW RUN",
+                    "this abandons the run above and starts over" if live
+                    else "the trailhead at 18:40, and one evening of light"))
+        out.append(("controls", "CONTROLS", ""))
+        out.append(("quit", "QUIT", ""))
+        return out
+
+    def compose(self) -> ComposeResult:
+        rows = []
+        for i, (_, label, note) in enumerate(self.options()):
+            line = f"  [bold #f0b46b]{i + 1}[/]  [#cdc6bb]{label}[/]"
+            if note:
+                line += f"\n     [#5a554e]{note}[/]"
+            rows.append(line)
+        with Vertical(id="card"):
+            yield Static("\n".join(TITLE_ART), id="art")
+            yield Static("Piney Ridge National Park.  One subject, "
+                         "nineteen hours overdue.", id="blurb")
+            yield Static("\n\n".join(rows), id="items")
+            yield Static("a number to choose", id="foot")
+
+    def action_pick(self, idx: int):
+        opts = self.options()
+        if idx < len(opts):
+            self.choose(opts[idx][0])
+
+    def action_pick_quit(self):
+        self.choose("quit")
+
+    def action_resume_run(self):
+        if self.in_run:
+            self.choose("back")
+
+    def choose(self, what):
+        if what == "controls":
+            self.app.push_screen(Controls())
+            return
+        self.dismiss(what)
 
 
 class DeadAir(App):
@@ -87,6 +228,7 @@ class DeadAir(App):
         Binding("c", "cell", "swap cell"),
         Binding("f", "lamp", "lamp"),
         Binding("n", "restart", "new run"),
+        Binding("escape", "menu", "menu"),
         Binding("q", "quit", "quit"),
     ]
 
@@ -94,6 +236,7 @@ class DeadAir(App):
         super().__init__()
         self.seed = seed
         self.game = Game(seed)
+        self._started = False   # until the menu says which run this is
         self._view_key = None
         self._can_draw = False
 
@@ -124,14 +267,66 @@ class DeadAir(App):
     def on_mount(self):
         if not self._can_draw:
             self.query_one("#viewport").add_class("gone")
-        self.emit([("title", "DEAD AIR"),
-                   ("sys", "Piney Ridge National Park.  18:40.  "
-                           "Search and rescue callout, one subject, "
-                           "nineteen hours overdue.")])
-        self.emit(self.game.enter())
+        self.refresh_panels()
+        self.open_menu()
+
+    # -- the front of the game ----------------------------------------------
+
+    def open_menu(self):
+        """Nobody gets dropped down a hole they did not ask to go down."""
+        saved = None if self._started else save.load()
+        if saved is not None and self.seed is None:
+            self.seed = saved.seed
+        self.push_screen(Menu(saved, in_run=self._started), self.menu_choice)
+
+    def menu_choice(self, what):
+        if what == "quit":
+            self.exit()
+        elif what == "resume":
+            self.resume_run()
+        elif what == "new":
+            self.start_run()
+        elif not self._started:
+            # dismissed some other way with nothing running behind it
+            self.start_run()
+
+    def begin(self, game, opening):
+        """Put `game` on the screen with `opening` above it in the log."""
+        self.game = game
+        self._started = True
+        self._view_key = None
+        log = self.query_one("#narrative", VerticalScroll)
+        for w in list(log.children):
+            w.remove()
+        self.emit(opening)
         self.refresh_panels()
         # the viewport has no size until the first layout has happened
         self.call_after_refresh(self.refresh_view)
+
+    def start_run(self):
+        save.clear()
+        self.begin(Game(self.seed),
+                   [("title", "DEAD AIR"),
+                    ("sys", "Piney Ridge National Park.  18:40.  "
+                            "Search and rescue callout, one subject, "
+                            "nineteen hours overdue.")])
+        self.emit(self.game.enter())
+        self.autosave()
+
+    def resume_run(self):
+        game = save.load()
+        if game is None:
+            # the file went bad between the menu drawing itself and this
+            self.start_run()
+            return
+        self.begin(game, [("title", "DEAD AIR")])
+        self.emit([("sys", RESUMED[game.phase])])
+        self.emit(game.describe(full=True))
+
+    def autosave(self):
+        """After every action, because nothing here announces itself."""
+        if self._started and not self.game.ending:
+            save.write(self.game, self.seed)
 
     def on_resize(self, event=None):
         self._view_key = None
@@ -401,7 +596,7 @@ class DeadAir(App):
         g = self.game
         if g.ending:
             self.query_one("#actions", Static).update(
-                "[#8d867c]  N  new run       Q  quit[/]")
+                "[#8d867c]  N  new run    ESC  menu    Q  quit[/]")
             return
         rows = []
         for i, (kind, label, ok, why, _) in enumerate(g.choices()):
@@ -428,7 +623,10 @@ class DeadAir(App):
     def after(self, events):
         self.emit(events)
         if self.game.ending:
+            save.clear()        # a finished run is a story, not a save
             self.show_ending()
+        else:
+            self.autosave()
         self.refresh_panels()
 
     def show_ending(self):
@@ -443,7 +641,8 @@ class DeadAir(App):
         ev.append(("sys", f"Out at {g.surface_clock()}.  Elapsed {g.clock()}. "
                           f" Deepest point {deepest} m.  "
                           f"{self.surveyed()} passages surveyed."))
-        ev.append(("sys", "N for a new run.  Q to quit."))
+        ev.append(("sys", "N for a new run.  ESC for the menu.  "
+                          "Q to quit."))
         self.emit(ev)
 
     def action_choose(self, idx: int):
@@ -476,14 +675,11 @@ class DeadAir(App):
             self.after(self.game.swap_cell())
 
     def action_restart(self):
-        self.game = Game(self.seed)
-        self._view_key = None
-        log = self.query_one("#narrative", VerticalScroll)
-        for w in list(log.children):
-            w.remove()
-        self.emit([("title", "DEAD AIR")])
-        self.emit(self.game.enter())
-        self.refresh_panels()
+        self.start_run()
+
+    def action_menu(self):
+        self.autosave()
+        self.open_menu()
 
 
 def parse_args(argv=None):
