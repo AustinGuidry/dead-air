@@ -82,8 +82,8 @@ ROOMS = {
         "back out."
     ),
     first=(
-        "Wren Alcott. Twenty-six. Solo, which is the whole problem. Their "
-        "car has been at the trailhead nineteen hours and their permit says "
+        "Wren Alcott. Twenty-six. Solo, which is the whole problem. Her "
+        "car has been at the trailhead nineteen hours and her permit says "
         "Wolf Sink, and Wolf Sink is a name that made three people at "
         "basecamp go quiet when you read it aloud.\n\n"
         "You do the checks the way you were taught, out loud, alone in the "
@@ -242,8 +242,8 @@ ROOMS = {
         "the far side of. There are two good naturals for a rig — a thread "
         "and a solid flake — and a deviation you would want at about four "
         "metres.",
-        "Wren's flagging goes over the lip and stops. They downclimbed this "
-        "or they fell down it, and there is no way to know which from up here."
+        "Wren's flagging goes over the lip and stops. She downclimbed this "
+        "or she fell down it, and there is no way to know which from up here."
     ),
     first=(
         "You try the radio. Basecamp is a shape in the static now, not a "
@@ -377,7 +377,7 @@ ROOMS = {
     look=(
         "A junction chamber, and in the middle of it, set down against a "
         "boulder, is a red forty-litre pack.",
-        "Wren's. Their name is inked on the lid strap. It is packed and "
+        "Wren's. Her name is inked on the lid strap. It is packed and "
         "closed and upright. Nobody drops a pack this neatly in an "
         "emergency; you set a pack down like this when you intend to come "
         "straight back to it.",
@@ -509,7 +509,7 @@ ROOMS = {
         "eleven paces into an open flat floor and they stop, and after that "
         "there is only clean silt for as far as your light reaches.",
         "And sitting on the silt at the end of them, folded neatly, is "
-        "Wren Alcott's oversuit, and their helmet on top of it, and the "
+        "Wren Alcott's oversuit, and her helmet on top of it, and the "
         "helmet lamp is still on."
     ),
     first=(
@@ -634,7 +634,7 @@ RADIO = {
         "position into an open channel and hear, faintly, a second key "
         "click open somewhere, and close again.",
         "BASECAMP, clear as a bell, no static at all, at sixty metres of "
-        "solid limestone: 'We've got Wren. Wren's here, they walked out an "
+        "solid limestone: 'We've got Wren. Wren's here, she walked out an "
         "hour ago. Who's down there?'",
         "Your own voice, from four hours ago, giving your position at the "
         "Bell Chamber. Word for word. Including the part where you cleared "
@@ -674,7 +674,7 @@ PARK = {
         "Sink is a name that made three people at the ranger station go "
         "quiet when you read it aloud.\n\n"
         "You have until dark to walk the approach and talk to whoever saw "
-        "them last. After that this stops being a search and starts being "
+        "her last. After that this stops being a search and starts being "
         "a callout, and you go down the hole."
     ),
     people=[
@@ -746,13 +746,13 @@ PARK = {
             ("She is sitting on a rock with a foil blanket she does not "
              "need around her shoulders, because somebody handed it to her "
              "and she did not know how to refuse it.\n\n"
-             "\"I already told the ranger. I ran past them. Yesterday, "
+             "\"I already told the ranger. I ran past her. Yesterday, "
              "early, before it was properly light.\"",
              ""),
-            ("\"They were going down the use path with a pack on. I said "
-             "morning and they said morning back.\" She stops. \"That's the "
-             "part I keep going over, because they said it like — like they "
-             "were being polite to somebody they'd already said it to. "
+            ("\"She was going down the use path with a pack on. I said "
+             "morning and she said morning back.\" She stops. \"That's the "
+             "part I keep going over, because she said it like — like she "
+             "was being polite to somebody she'd already said it to. "
              "Like I was the second person.\"",
              "clue:ivy"),
             ("\"There wasn't anyone else on the path. I'd have passed them. "
@@ -982,41 +982,41 @@ PARK = {
              "because people can hold facts when they cannot hold anything "
              "else.",
              "mother"),
-            ("\"They started coming here in the spring.\" She has her hands "
-             "in her coat pockets and she does not take them out. \"They "
+            ("\"She started coming here in the spring.\" She has her hands "
+             "in her coat pockets and she does not take them out. \"She "
              "wouldn't say where. I thought there was somebody. You think "
-             "that, don't you, when they go quiet and they go every "
+             "that, don't you, when she goes quiet and she goes every "
              "weekend. You think there's somebody and you're pleased.\"",
              ""),
-            ("\"Six weeks ago they came for Sunday and they were fine, and "
-             "they were funny, and they did the washing-up, and at the door "
-             "they said —\"\n\n"
+            ("\"Six weeks ago she came for Sunday and she was fine, and "
+             "she was funny, and she did the washing-up, and at the door "
+             "she said —\"\n\n"
              "She stops and starts again, and gets it out level.\n\n"
-             "\"They said: if I ever come back and I'm not right, you'll "
-             "know, won't you. And I said don't be stupid. And they said "
+             "\"She said: if I ever come back and I'm not right, you'll "
+             "know, won't you. And I said don't be stupid. And she said "
              "no, I mean it, you'll know. And I said yes. I said yes, "
              "because it was the door and it was raining.\"",
              "clue:promise"),
         ]),
         Person("Junie Vance", "Wren's partner", [
-            ("They are sitting in the open door of the second vehicle with "
-             "a cup of something they have not drunk any of.\n\n"
-             "\"I'm not family. They keep saying I can go home.\" They look "
+            ("She is sitting in the open door of the second vehicle with "
+             "a cup of something she has not drunk any of.\n\n"
+             "\"I'm not family. They keep saying I can go home.\" She looks "
              "up. \"Eleven years. I'm not family.\"",
              ""),
-            ("\"Wren caves. Caved. Twenty years, since school, and they are "
+            ("\"Wren caves. Caved. Twenty years, since school, and she is "
              "the most careful person I have ever met about it — buddy "
-             "system, call-outs, the whole liturgy.\" Their hands are "
-             "steady on the cup. \"And then in March they started going "
-             "alone and they wouldn't discuss it. Wren doesn't refuse to "
+             "system, call-outs, the whole liturgy.\" Junie's hands are "
+             "steady on the cup. \"And then in March she started going "
+             "alone and she wouldn't discuss it. Wren doesn't refuse to "
              "discuss things. Wren discusses things until you'd rather die.\"",
              "clue:junie"),
-            ("\"They came back different every time. Not bad. Quieter. "
+            ("\"She came back different every time. Not bad. Quieter. "
              "Happier, actually, and that was worse.\"\n\n"
-             "They finally look at the hole.\n\n"
-             "\"Last month I asked what was down there. And they thought "
+             "She finally looks at the hole.\n\n"
+             "\"Last month I asked what was down there. And she thought "
              "about it properly, for a long time, like it was a real "
-             "question and they wanted to get it right. And then they said: "
+             "question and she wanted to get it right. And then she said: "
              "somebody who's been on their own for a very long time.\"",
              "clue:somebody"),
         ]),
@@ -1091,15 +1091,15 @@ PAYOFFS = {
 "squeeze": {
     "clue:promise": "If I ever come back and I'm not right, you'll know, "
                     "won't you.\n\nWren said that at a door, in the rain, "
-                    "six weeks ago, and their mother said yes because it "
+                    "six weeks ago, and her mother said yes because it "
                     "was the door and it was raining. You take your helmet "
                     "off and you go through the hole anyway.",
 },
 
 "long_room": {
-    "clue:ivy": "They said morning back like they were being polite to "
-                "somebody they had already said it to. Like Ivy Crenshaw "
-                "was the second person to say it to them that morning, on "
+    "clue:ivy": "She said morning back like she was being polite to "
+                "somebody she had already said it to. Like Ivy Crenshaw "
+                "was the second person to say it to her that morning, on "
                 "a mile of switchback with nobody else on it.",
 },
 
@@ -1118,7 +1118,7 @@ PAYOFFS = {
 
 "deep": {
     "clue:somebody": "You asked what was down here, Junie said, and Wren "
-                     "thought about it for a long time because they wanted "
+                     "thought about it for a long time because she wanted "
                      "to get it right.\n\nSomebody who's been on their own "
                      "for a very long time.",
     "clue:sixtyeight": "Day four, in sixty-eight, they brought a man out "
