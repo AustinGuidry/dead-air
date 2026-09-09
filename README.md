@@ -12,10 +12,16 @@ Every room draws itself. The scenes are raymarched at runtime and lit by your
 actual lamp, so the picture loses reach and detail as the cell dies, for the
 same reason the prose does.
 
-Built with [Textual](https://textual.textualize.io/). Runs in kitty — the
-graphics use the kitty protocol, and fall back to sixel and then to Unicode
-half-blocks elsewhere, so it plays in any terminal and looks best in one that
-can draw. Ghostty, WezTerm and Konsole speak the protocol too.
+Built with [Textual](https://textual.textualize.io/), so it runs anywhere
+Python 3.12 does — Linux, macOS and Windows, in a local terminal, over SSH,
+or inside tmux.
+
+Every room is drawn to whatever the terminal can manage. The kitty graphics
+protocol gives the sharpest picture — kitty, Ghostty, WezTerm and Konsole
+speak it; terminals with sixel get that instead; everything else falls back
+to Unicode half-blocks, which is just text and works everywhere, including
+the plain Windows command prompt. It looks best in a terminal that can draw
+and it plays fine in one that can't.
 
 ## Install
 
