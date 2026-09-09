@@ -526,6 +526,32 @@ class Game:
         if h == "answer":
             self.ending = "STAY"
             return []
+        if h == "burn":
+            # The lens at the nest: the helmet lamp is not enough light down
+            # here to finish it, but it buys the gap to get her moving.
+            return [("alarm",
+                "You get the lens up between the helmet lamp and the seam, "
+                "and the flood of the beam collapses through it to a single "
+                "white point, and where the point lands the dark flinches "
+                "back off the wall.\n\n"
+                "Not enough. There is not enough light down here to do more "
+                "than that. But it is enough of a gap to take her weight and "
+                "turn her toward the seam you came in by.")]
+        if h == "unarmed":
+            self.flags.add("bolted")
+            return [("alarm",
+                "You do not try anything with it. The light swings wild off "
+                "the walls and whatever comes after you does not need the "
+                "light to see by, and you do not look back to check.")]
+        if h == "climb_out":
+            # The mine head: the lens has a real source here — the knife of
+            # grey the mountain leaks at dawn — but only if you still have it
+            # and did not panic your way out of the nest.
+            if "lens" in self.flags and "bolted" not in self.flags:
+                self.ending = "RESCUE"
+            else:
+                self.ending = "RESCUE_HARD"
+            return []
         return []
 
     def listen(self):
@@ -712,6 +738,57 @@ ENDINGS = {
     "nights, in a house with the lights on, you can hear the specific sound "
     "of a room the size of a cathedral, and you know exactly how far away "
     "it is, and it is not far."),
+
+"RESCUE": ("YOU BROUGHT HER OUT", "good",
+    "Eleven metres of broken rock at forty degrees, and something in it "
+    "with you.\n\n"
+    "You can hear it in the rock — not a sound it makes, a sound the rock "
+    "makes having it against them — and it is closing a distance the two of "
+    "you cannot close any faster.\n\n"
+    "Where the choke opens there is a hand's width of grey. Not lamplight. "
+    "The mountain's own, leaking the way it has leaked for a hundred years, "
+    "thin and cold and the exact colour of nothing.\n\n"
+    "You take the lens out of your chest pocket. You have been carrying it "
+    "since a folding table at the top of a field and you have never once "
+    "known what it was for.\n\n"
+    "You hold it in the grey. The light goes through it and lands on the "
+    "dark behind Wren's shoulder as a point the size of a match head, and "
+    "the point is white, and it is hot, and for the first time in nineteen "
+    "hours the thing in the cave makes a sound that is unmistakably its "
+    "own.\n\n"
+    "It comes apart from the light. Not away — apart. You keep the point on "
+    "it until she is past you and up and out into the open air, and then "
+    "you follow her, and behind you the grey goes back to being nothing.\n\n"
+    "They gate Wolf Sink in November. The paperwork says bat conservation. "
+    "The man who welds it does the whole rim, not just the entrance, and he "
+    "is not told why and does not ask.\n\n"
+    "Wren Alcott gives a statement that is never released. You give one "
+    "too. Yours is shorter.\n\n"
+    "You go into a cave once more, years later — a show cave, handrails, a "
+    "guide — and you are fine until the guide kills the lights for effect, "
+    "the way they do, and you are the only person on the tour who does not "
+    "laugh."),
+
+"RESCUE_HARD": ("YOU BROUGHT HER OUT", "sys",
+    "Eleven metres of broken rock at forty degrees. You go up it. She goes "
+    "up it. Something goes up it behind her.\n\n"
+    "You do not stop and you do not look. You get a hand on her collar "
+    "where the rock pinches and you drag her through it into the open, out "
+    "under the hemlocks with the sky going grey, and you turn around with "
+    "your light up and there is nothing in the gap.\n\n"
+    "There was never going to be. It does not come out into the open. That "
+    "is the one rule of it you can prove, and it is also still down there, "
+    "entire, having lost nothing tonight except the two of you.\n\n"
+    "Wren Alcott lives. She is in the news for a week. She tells it once, "
+    "plainly, on a local station, and the interviewer's face does the "
+    "thing faces do, and she never tells it again.\n\n"
+    "Wolf Sink is not gated. There was no reason on paper to gate it. You "
+    "call the district office in November, and again in March, and a third "
+    "time the following autumn, and the third time they stop returning the "
+    "calls.\n\n"
+    "Some nights, in a house with the lights on, you can hear the specific "
+    "sound of a room the size of a cathedral, and you know exactly how far "
+    "away it is, and you know it is still being used."),
 
 "STAY": ("—", "alarm",
     "And it is so relieved.\n\n"

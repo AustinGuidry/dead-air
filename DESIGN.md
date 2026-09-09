@@ -53,16 +53,31 @@ the radio degrades, then degrades incorrectly, then is clear at sixty metres
 of limestone and saying something impossible. Taking the find starts a
 115-minute pursuit clock, and the way you came in is no longer open.
 
-**Seven endings.** Two ways out, five ways not to.
+**Nine endings.** Three ways out, six ways not to.
 
-The two you survive resolve against the clock. Act Two starts at 02:14 and a
-run is anywhere from twelve minutes (straight back out of the Letterbox) to
+Two of the three you survive — `OUT_WITH` and `OUT_ALONE`, the solo exits back
+through the Letterbox — resolve against the clock. Act Two starts at 02:14 and
+a run is anywhere from twelve minutes (straight back out of the Letterbox) to
 most of the night, so nothing about the exit can be written down in advance:
 `SKY` and `ARRIVAL` in `state.py` are indexed by `Game._sky_band()`, which
 knows roughly where September twilight falls at this latitude. Coming out
 after Trammell's 06:00 turnaround adds a line, because you were given a
 turnaround time in front of the family and the game should notice you missed
 it. A helmet run at best speed is 2h43 and puts you out at 04:57.
+
+**The rescue.** The third survivable exit is the one where you bring Wren
+back. Following the folded suit's line from `deep` leads to `nest` — Wren
+alive, held, the creature asleep against the far wall — and then to `adit`,
+the choked head of the old workings, where the mountain leaks a blade of grey
+dawn light that is nothing to see by and, through the burning-glass lens from
+Act One, is fire. `RESCUE` (you had the lens and did not panic out of the
+nest) wounds the thing enough to stall it and gets you both up the adit into
+the morning; the cave is gated that November. `RESCUE_HARD` (no lens, or you
+grabbed her and ran — the `bolted` flag) still gets you both out into open
+air, which is the one thing it will not follow you into, but the thing is
+untouched and nobody seals anything. These two are keyed to dawn, not the
+clock. The nest's third exit, back into the seam alone, drops you back onto
+the pursuit path.
 
 **Graphics that carry the mechanic.** Every room has a viewport above the
 prose, and it is not decoration. Scenes are described as signed-distance

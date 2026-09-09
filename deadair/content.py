@@ -549,6 +549,94 @@ ROOMS = {
         Exit(label="Answer it", to="stay", mins=1, hazard="answer",
              travel="You turn around, and you put your light on it, and "
                     "you say: I'm here."),
+        Exit(label="Go the way the suit was facing", to="nest", mins=12,
+             travel="The suit is folded, and folded things point somewhere. "
+                    "The collar is turned toward a low seam in the west "
+                    "wall that you had taken for shadow, and the silt in "
+                    "front of it is smooth in the way a threshold is "
+                    "smooth.\n\n"
+                    "You go in on your belly with your light held out in "
+                    "front of your face, and for eleven minutes the only "
+                    "thing you can think about is that this is how she "
+                    "went, and that she went without her suit.",
+             once="You are not doing procedure any more. You know that. You "
+                  "log the time out of habit and the habit is the only part "
+                  "of you still behaving like a rescue."),
+    ],
+),
+
+# ----- the nest -------------------------------------------------------------
+
+"nest": Room(
+    id="nest", name="—", depth=-66, mx=2, my=9,
+    look=(
+        "Bone. Not a pile — a floor. Worked flat and worked smooth and gone "
+        "the colour of old soap, and none of it is new.",
+        "The chamber is warm. Sixty-six metres down in a cave that runs at "
+        "eleven degrees, and it is warm, and the air moves across your face "
+        "from somewhere ahead and to the left, going up.",
+        "And on the far side of it, forty feet off, sitting upright against "
+        "the wall with her knees drawn up, is Wren Alcott. Her eyes are "
+        "open. She has been looking at the seam you came out of since "
+        "before your light reached it."
+    ),
+    first=(
+        "She says your name.\n\n"
+        "Not the way the dark said it. She reads it off the tape on your "
+        "chest, the way a person does, squinting, and she gets it slightly "
+        "wrong, and that small wrongness is the first thing in nineteen "
+        "hours that has been unambiguously good.\n\n"
+        "\"Don't put the light on it,\" she says. \"Not yet. It's been "
+        "asleep about an hour and I've been counting.\"\n\n"
+        "You do not ask what. There is a shape between you and her that "
+        "your beam goes into and does not come out of, and it is not "
+        "rock, and your light has been on it for four seconds already."
+    ),
+    exits=[
+        Exit(label="Put the lamp through the lens", to="adit", mins=6,
+             need="lens", deny="you have nothing to do it with",
+             hazard="burn"),
+        Exit(label="Take her and run for it", to="adit", mins=6,
+             hazard="unarmed",
+             travel="You cross the floor and get a hand under her arm and "
+                    "she is lighter than a person should be."),
+        Exit(label="Back into the seam, alone", to="deep", mins=12,
+             travel="She does not call after you. That is the part you will "
+                    "be told, later and repeatedly, that you could not have "
+                    "known about."),
+    ],
+),
+
+"adit": Room(
+    id="adit", name="The Old Workings", depth=-18, mx=4, my=9,
+    tags={"signal"},
+    look=(
+        "Cut timber. Square-set, adzed, propped by somebody who meant it to "
+        "hold and who has been dead for a hundred years.",
+        "An adit, driven by hand into the hill and abandoned before it "
+        "found anything. There is a rail, and a hand-drill scar every "
+        "eighteen inches, and the black feathered smoke of carbide lamps on "
+        "the back of every set.",
+        "And at the top of it, past the choke, thin as a blade and the "
+        "colour of nothing: grey. Not lamplight. Not yours."
+    ),
+    first=(
+        "This is the second way to the surface. It has been here the whole "
+        "time, and it is why the cave breathes, and the people who cut it "
+        "walked out of it in 1911 and closed it behind them with forty tons "
+        "of hillside and did not write down why.\n\n"
+        "Wren is on your shoulder and she is talking, low and continuous, "
+        "and none of it is for you. She is counting.\n\n"
+        "The grey is eleven metres up through a choke that two people can "
+        "just about get through if one of them goes first and does not stop "
+        "to think about the other one."
+    ),
+    exits=[
+        Exit(label="Up, into the grey", to="adit", mins=9, hazard="climb_out",
+             travel="You go first because you have the light and she goes "
+                    "second because she has nothing left, and twice she "
+                    "stops and twice she starts again without being asked. "
+                    "You go up when the grey comes and not before."),
     ],
 ),
 
