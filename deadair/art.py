@@ -218,8 +218,18 @@ def _air_fn(s: Scene, detail=False):
         tx = rng.uniform(-13.0, 13.0, n_t).astype(F32)
         tr = (rng.uniform(0.11, 0.24, n_t) * (1.0 + tz / 22.0)).astype(F32)
         tls = rng.uniform(-0.05, 0.05, n_t).astype(F32)      # per-trunk lean
-        crown_h = (s.canopy + rng.uniform(-0.7, 1.6, n_t)).astype(F32)
-        crown_r = rng.uniform(1.7, 3.1, n_t).astype(F32)
+        crown_h = (s.canopy + rng.uniform(-1.4, 2.2, n_t)).astype(F32)
+        crown_r = rng.uniform(1.5, 3.2, n_t).astype(F32)
+        # how squashed each crown is. One shared value made the canopy a slab
+        # with a straight underside; varying it gives the layer a silhouette.
+        crown_sq = rng.uniform(1.15, 2.1, n_t).astype(F32)
+
+        if s.deadwood:
+            # Standing dead hemlock, not a colonnade: the tops snap off at
+            # every height, the ones still rooted lean, and a few are stumps.
+            tr = (tr * rng.uniform(0.5, 1.6, n_t)).astype(F32)
+            tls = rng.uniform(-0.16, 0.16, n_t).astype(F32)
+            crown_h = (crown_h * rng.uniform(0.3, 1.05, n_t)).astype(F32)
 
         if n_t >= 5:
             fr = np.argsort(tz)[:2]
@@ -245,6 +255,7 @@ def _air_fn(s: Scene, detail=False):
         RISE_T = t_rise[None, :]
         CY, CR, TOP = ((s.floor + t_rise + crown_h)[None, :], crown_r[None, :],
                        (t_rise + top_h)[None, :])
+        CSQ = crown_sq[None, :]
 
         n_b = 0 if s.deadwood else int(n_t * s.understory)
         if n_b:
@@ -292,14 +303,14 @@ def _air_fn(s: Scene, detail=False):
             if s.canopy and not s.deadwood:
                 # crowns share the trunk offset — a flattened blob per tree,
                 # merged soft so the stand carries one ragged canopy
-                cdy = (py[:, None] - CY) * 1.6
+                cdy = (py[:, None] - CY) * CSQ
                 crown = np.sqrt(hx * hx + cdy * cdy + hz * hz) - CR
                 # one cheap tap, and it only ever carves the crown back, never
                 # bulges it — a bulge hangs threads off the underside
                 crown = crown.min(axis=1) + np.clip(
                     0.55 - _noise(px * 0.5 + v, py * 0.4, pz * 0.5),
-                    0.0, 0.55) * 2.2
-                a = _smin(a, crown, 0.55)
+                    0.0, 0.55) * 2.9
+                a = _smin(a, crown, 0.40)
 
             if n_b:
                 qx = (px[:, None] - BX) * BINV
