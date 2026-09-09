@@ -537,6 +537,10 @@ class DeadAir(App):
                f"  examined      [#cdc6bb]{seen}[/][#5a554e]/{len(clues)}[/]"]
         kit.append("  cleared to go [#a9c987]yes[/]" if "ready" in g.flags
                    else "  cleared to go [#5a554e]not yet[/]")
+        if "lens" in g.flags:
+            kit.append("  the lens      [#cdc6bb]in your pocket[/]")
+        elif "chose:lens" in g.flags:
+            kit.append("  the lens      [#5a554e]left on the table[/]")
         self.query_one("#kit", Static).update("\n".join(kit))
         self.query_one("#map", Static).update(
             "[#8d867c]APPROACH[/]\n" + self.render_approach())
@@ -595,6 +599,8 @@ class DeadAir(App):
         kit.append("  helmet        [#a9c987]recovered[/]"
                    if "took_find" in g.flags else
                    "  helmet        [#5a554e]—[/]")
+        if "lens" in g.flags:
+            kit.append("  the lens      [#cdc6bb]chest pocket[/]")
         kit.append(f"  passages      [#cdc6bb]{self.surveyed()}[/#cdc6bb]"
                    f"[#5a554e]/{len(CAVE_ROOMS)}[/]")
         self.query_one("#kit", Static).update("\n".join(kit))

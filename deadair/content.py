@@ -45,6 +45,21 @@ class Clue:
 
 
 @dataclass
+class Pickup:
+    """Something you can carry down, or decide not to.
+
+    Costs no daylight — it is lying right there and the decision is the whole
+    of it. Offered only once `needs` is set, so you have to have looked at the
+    thing before you are asked to commit to it, and gone for good either way.
+    """
+    label: str                  # "the lens"
+    needs: str                  # flag that has to be set before it is offered
+    flag: str                   # flag set if you take it
+    take: str
+    leave: str
+
+
+@dataclass
 class Room:
     id: str
     name: str
@@ -57,6 +72,7 @@ class Room:
     my: int = 0
     people: list = field(default_factory=list)   # Act One only
     clues: list = field(default_factory=list)    # Act One only
+    pickups: list = field(default_factory=list)  # Act One only
 
 
 # --------------------------------------------------------------------------
@@ -700,13 +716,17 @@ PARK = {
     ],
     clues=[
         Clue("The silver hatchback", 3,
-             "Unlocked. Nobody locks a car at a trailhead they mean to come "
-             "back to in four hours.\n\n"
+             "Locked, and already open. Junie Vance has had a key to this "
+             "car for eleven years and she was standing here at four in the "
+             "morning, hours before anybody thought to call you.\n\n"
              "Inside: a change of clothes folded on the passenger seat, a "
              "receipt from a gas station in Blakely timestamped 05:41 "
              "yesterday, and, in the door pocket, a second permit — same "
              "hand, same box ticked, dated three weeks ago.\n\n"
-             "Wren has been here before. More than once.",
+             "Wren has been here before. More than once.\n\n"
+             "The door pocket had one other thing in it. Nobody on this lot "
+             "could say what it was, so it went up the hill to Trammell with "
+             "everything else that did not fit anywhere.",
              "clue:car"),
         Clue("The permit register", 3,
              "A steel box on a post with a slot in the top and a pad of "
@@ -1004,6 +1024,18 @@ PARK = {
              "\"I'm not family. They keep saying I can go home.\" She looks "
              "up. \"Eleven years. I'm not family.\"",
              ""),
+            ("\"I've got a key. Her car, my car, same ring, since before "
+             "either of us had anything worth locking.\" She turns the cup "
+             "around and does not drink out of it. \"I came up at four. I "
+             "opened it myself, because I could not stand next to it and "
+             "not open it.\"\n\n"
+             "\"There was a bit of glass in the door pocket. Like a lens off "
+             "something. I gave it to the man with the clipboard because I "
+             "did not know what else to do with it.\"\n\n"
+             "She stops.\n\n"
+             "\"I keep thinking I should have kept hold of it. I could not "
+             "tell you why.\"",
+             "clue:keys"),
             ("\"Wren caves. Caved. Twenty years, since school, and she is "
              "the most careful person I have ever met about it — buddy "
              "system, call-outs, the whole liturgy.\" Junie's hands are "
@@ -1031,6 +1063,36 @@ PARK = {
              "the same hand and much smaller, as though it were a technical "
              "note: PARTY UNWILLING.",
              "clue:map"),
+        Clue("The thing out of her car", 2,
+             "It is on the corner of the map in a freezer bag, which is "
+             "what you do with a thing you cannot name.\n\n"
+             "A lens. Glass, thick, a little bigger than a silver dollar, "
+             "ground convex on both faces and gone cloudy around the rim. "
+             "It sits in a felt sleeve worn through at one corner. No "
+             "maker's mark, no frame, no thread, nothing to say what it was "
+             "ever fitted to.\n\n"
+             "\"Door pocket,\" Trammell says. \"Her partner handed it over "
+             "at four this morning. It's not spectacles and it's not off a "
+             "camera, and whatever it is, it's older than anybody standing "
+             "on this ridge.\"\n\n"
+             "He puts it down on the map and does not pick it back up.\n\n"
+             "\"Means nothing to me. You want it, take it. It's the only "
+             "thing she had with her that I can't account for.\"",
+             "clue:lens"),
+    ],
+    pickups=[
+        Pickup("the lens", needs="clue:lens", flag="lens",
+               take="You put it in the chest pocket with the zip, the one "
+                    "the spare cell lives in, because that is the pocket "
+                    "you can reach with a pack on.\n\n"
+                    "It weighs almost nothing. You do not think about it "
+                    "again for a long time.",
+               leave="You leave it on the corner of the map where Trammell "
+                     "put it.\n\n"
+                     "It is a piece of glass out of a car door. You have "
+                     "sixty metres of rope to rig and a hole to be at the "
+                     "bottom of, and there is a limit to what you can carry "
+                     "down there on a feeling."),
     ],
     exits=[
         Exit(label="Rig in. Go down.", to="sink", mins=0, hazard="descend",

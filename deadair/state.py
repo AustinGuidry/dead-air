@@ -321,6 +321,12 @@ class Game:
                                 "not in this light", c))
                 else:
                     out.append(("clue", c.label, True, f"{c.mins} min", c))
+            for it in self.room.pickups:
+                # offered once you have looked at it, and only until you say
+                if it.needs not in self.flags or f"chose:{it.flag}" in self.flags:
+                    continue
+                out.append(("take", f"Take {it.label}", True, "", it))
+                out.append(("leave", f"Leave {it.label}", True, "", it))
         for x, ok, why in self.exits():
             out.append(("go", x.label, ok, why, x))
         return out
@@ -337,6 +343,8 @@ class Game:
             return self._talk(obj)
         if kind == "clue":
             return self._inspect(obj)
+        if kind in ("take", "leave"):
+            return self._decide(obj, kind == "take")
         return self.move(self.room.exits.index(obj))
 
     def _talk(self, person):
@@ -360,6 +368,14 @@ class Game:
         ev += self._burn(clue.mins)
         self._check_ready()
         return ev
+
+    def _decide(self, it, taking):
+        """Take it or leave it. Costs no daylight and does not come back."""
+        self.flags.add(f"chose:{it.flag}")
+        if taking:
+            self.flags.add(it.flag)
+        return [("title", it.label.capitalize()),
+                ("narr", it.take if taking else it.leave)]
 
     def _check_ready(self):
         """You go down once you have your brief and have faced the family."""
