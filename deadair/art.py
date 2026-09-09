@@ -351,14 +351,24 @@ def _lut(name):
 #  render
 # --------------------------------------------------------------------------
 
+_FOREST_TAN = 1.6     # widest lens a forest gets, as a half-angle tangent
+
+
 def _render(s: Scene, light: float, w: int, h: int) -> Image.Image:
     """Render a scene. `light` is 0..1 — how much lamp you have."""
     aspect = w / h
-    tanf = 0.56
+    tan_x, tan_y = 0.56 * aspect, 0.56
+    if s.kind == "forest" and tan_x > _FOREST_TAN:
+        # The viewport is a letterbox, and widening the lens to fill it turns
+        # the picture into a fisheye: the horizon bows, everything shrinks
+        # toward the middle distance, and a whole stand reads as six trees on
+        # a diorama. Hold the horizontal angle and let the frame be a slit.
+        tan_x = _FOREST_TAN
+        tan_y = tan_x / aspect
     j, i = np.meshgrid(np.arange(h, dtype=F32), np.arange(w, dtype=F32),
                        indexing="ij")
-    sx = ((i + 0.5) / w * 2.0 - 1.0) * tanf * aspect
-    sy = (1.0 - (j + 0.5) / h * 2.0) * tanf
+    sx = ((i + 0.5) / w * 2.0 - 1.0) * tan_x
+    sy = (1.0 - (j + 0.5) / h * 2.0) * tan_y
     dx, dy, dz = sx, sy, np.ones_like(sx)
     if s.tilt:
         ct, st = math.cos(s.tilt), math.sin(s.tilt)
@@ -372,7 +382,7 @@ def _render(s: Scene, light: float, w: int, h: int) -> Image.Image:
     # Above ground the dominant surface is an exact plane, so the march can
     # stride out; underground the displaced tube needs small careful steps.
     if s.kind == "forest":
-        mp = dict(steps=22, factor=0.92, eps=0.05)
+        mp = dict(steps=44, factor=0.92, eps=0.045)
     elif surface:
         mp = dict(steps=30, factor=0.92, eps=0.03)
     else:
@@ -558,7 +568,7 @@ def sky_band(daylight):
 # is another distance to every marched ray. Rather than thin the woods out,
 # render the leafy scenes at a coarser grid and let the upscale blur it —
 # which is close to what dusk under a canopy actually looks like.
-_FOREST_BUDGET = 62_000
+_FOREST_BUDGET = 50_000
 
 
 @lru_cache(maxsize=72)
