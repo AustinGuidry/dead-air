@@ -90,6 +90,8 @@ class Scene:
     path: float = 0.0           # half-width of a cleared path, 0 = none
     rise: float = 0.0           # ground slope away from you — the ridge going up
     deadwood: bool = False      # bare standing trunks — no crowns, no brush
+    lights: float = 0.0         # work lights on a generator, behind your back
+    lens: float = 0.0           # cap the lens at this half-angle tan, 0 = fill
     fog: float = 16.0           # scatter distance
     reach: float = 9.0          # lamp falloff distance at full power
     palette: str = "cave"       # cave | dusk | night
@@ -151,6 +153,25 @@ def _air_fn(s: Scene, detail=False):
             return a
 
     elif s.kind == "hole":
+        # The sink opens under a stand of hemlock, so the hole can carry
+        # trunks too — without them the lip is a dent in an empty field and
+        # nothing in the picture agrees with the prose.
+        n_t = s.trees
+        if n_t:
+            hrng = np.random.default_rng(int(v * 1000) + 11)
+            tz = hrng.uniform(-2.0, 17.0, n_t).astype(F32)
+            tx = hrng.uniform(-10.0, 10.0, n_t).astype(F32)
+            tr = hrng.uniform(0.17, 0.36, n_t).astype(F32)
+            # not standing in the hole, and not in the camera's lap
+            hd = np.sqrt(tx ** 2 + (tz - s.hole_z) ** 2)
+            push = hd < s.hole_r + 1.3
+            scale = np.where(push, (s.hole_r + 1.3) / np.maximum(hd, 0.2), 1.0)
+            tx = (tx * scale).astype(F32)
+            tz = (s.hole_z + (tz - s.hole_z) * scale).astype(F32)
+            lap = (np.abs(tx) < 1.1) & (tz < 1.6)
+            tx[lap] = tx[lap] + 2.4
+            TX, TZ, TR = tx[None, :], tz[None, :], tr[None, :]
+
         def air(px, py, pz):
             ground = py - s.floor - rock(px, py, pz)
             ang = np.arctan2(px, pz - s.hole_z)
@@ -158,7 +179,16 @@ def _air_fn(s: Scene, detail=False):
             rim = s.hole_r * (1.0 + 0.26 * np.sin(ang * 3.0 + v)
                               + 0.12 * np.sin(ang * 7.0 - v))
             shaft = np.minimum(rim - r, py - (s.floor - s.depth_below))
-            return np.maximum(ground, shaft)
+            a = np.maximum(ground, shaft)
+            if n_t:
+                yb = (py - s.floor)[:, None]
+                hx = px[:, None] - TX
+                hz = pz[:, None] - TZ
+                trad = TR * (1.10 - 0.5 * np.clip(yb - 0.9, -0.9, 0.0))
+                trunk = np.sqrt(hx * hx + hz * hz) - trad
+                trunk = np.maximum(trunk, yb - 11.0)
+                a = _smin(a, trunk.min(axis=1), 0.25)
+            return a
 
     elif s.kind == "forest":
         rng = np.random.default_rng(int(v * 1000) + 7)
@@ -380,12 +410,13 @@ def _render(s: Scene, light: float, w: int, h: int) -> Image.Image:
     """Render a scene. `light` is 0..1 — how much lamp you have."""
     aspect = w / h
     tan_x, tan_y = 0.56 * aspect, 0.56
-    if s.kind == "forest" and tan_x > _FOREST_TAN:
+    cap = s.lens or (_FOREST_TAN if s.kind == "forest" else 0.0)
+    if cap and tan_x > cap:
         # The viewport is a letterbox, and widening the lens to fill it turns
         # the picture into a fisheye: the horizon bows, everything shrinks
         # toward the middle distance, and a whole stand reads as six trees on
         # a diorama. Hold the horizontal angle and let the frame be a slit.
-        tan_x = _FOREST_TAN
+        tan_x = cap
         tan_y = tan_x / aspect
     j, i = np.meshgrid(np.arange(h, dtype=F32), np.arange(w, dtype=F32),
                        indexing="ij")
@@ -431,6 +462,19 @@ def _render(s: Scene, light: float, w: int, h: int) -> Image.Image:
         head = np.clip(-(dx * nx + dy * ny + dz * nz), 0.0, 1.0)
         reach = max(0.6, s.reach * (1.0 - 0.86 * s.day))
         lit = lit + albedo * head * light * 2.2 / (1.0 + (t / reach) ** 2 * 2.2)
+        if s.lights:
+            # A generator and a string of lamps on stands, behind your back.
+            # They make a hard white room out of forty feet of hemlock and
+            # nothing at all out of the rest of the ridge — which is the
+            # line in the prose, and the reason the hole reads as a hole:
+            # nothing that goes down it comes back lit.
+            for lx, ly, lz in ((-3.4, 2.3, -2.6), (3.8, 2.0, -1.2),
+                               (0.4, 2.6, -4.0)):
+                wx, wy, wz = lx - hx, ly - hy, lz - hz
+                d2 = wx * wx + wy * wy + wz * wz
+                inv = 1.0 / np.sqrt(d2)
+                ndl = np.clip((nx * wx + ny * wy + nz * wz) * inv, 0.0, 1.0)
+                lit = lit + albedo * s.lights * ndl / (1.0 + d2 * 0.035)
     else:
         reach = s.reach * (0.32 + 0.68 * light)
         diff = np.clip(-(dx * nx + dy * ny + dz * nz), 0.0, 1.0)
@@ -512,14 +556,15 @@ SCENES = {
 "hollow": Scene(kind="forest", trees=19, canopy=5.2, understory=1.1, path=1.2,
                 rise=0.20, floor=-1.35, rough=0.55, freq=0.55, tilt=0.06,
                 palette="dusk", sky=0.22, fog=28.0, var=24.0),
-"basecamp": Scene(kind="hole", floor=-1.5, hole_r=2.9, hole_z=5.0,
-                  depth_below=13.0, rough=0.45, tilt=-0.32, palette="dusk",
-                  sky=0.24, fog=50.0, reach=8.0, var=25.0),
+"basecamp": Scene(kind="hole", floor=-1.5, hole_r=3.0, hole_z=5.5,
+                  depth_below=13.0, rough=0.45, trees=13, lights=1.5,
+                  tilt=-0.34, palette="dusk", sky=0.24, fog=50.0,
+                  reach=8.0, var=25.0),
 
 # ----- the cave ------------------------------------------------------------
-"sink": Scene(kind="hole", floor=-1.5, hole_r=2.7, hole_z=3.9, depth_below=14.0,
-              rough=0.45, tilt=-0.40, palette="night", sky=0.020, fog=30.0,
-              reach=7.5, var=26.0),
+"sink": Scene(kind="hole", floor=-1.5, hole_r=2.7, hole_z=4.4, depth_below=14.0,
+              rough=0.45, trees=11, lights=1.7, tilt=-0.38,
+              palette="night", sky=0.020, fog=30.0, reach=7.5, var=26.0),
 "letterbox": Scene(**_CRAWL, rx=1.05, ry=0.34, floor=-0.34, reach=3.6,
                    fog=7.0, var=1.0),
 "bell": Scene(kind="chamber", floor=-1.5, ceil=6.5, wall=3.4, far=9.0,
