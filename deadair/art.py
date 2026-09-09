@@ -88,6 +88,7 @@ class Scene:
     canopy: float = 0.0         # crown-centre height above the floor, 0 = bare
     understory: float = 0.0     # low-brush density, as a multiple of `trees`
     path: float = 0.0           # half-width of a cleared path, 0 = none
+    rise: float = 0.0           # ground slope away from you — the ridge going up
     deadwood: bool = False      # bare standing trunks — no crowns, no brush
     fog: float = 16.0           # scatter distance
     reach: float = 9.0          # lamp falloff distance at full power
@@ -167,11 +168,23 @@ def _air_fn(s: Scene, detail=False):
             """Where the path runs, as it wanders off ahead of you."""
             return 1.1 * np.sin(z * 0.13 + v) + 0.5 * np.sin(z * 0.37 + v * 1.7)
 
+        # The ground goes up behind you. This is in the prose — nineteen
+        # hundred feet of ridge — but it is also what makes the far ground
+        # drawable at all: a ray aimed along a flat plane grazes it and the
+        # march creeps a few centimetres a step, so the ground ran out around
+        # ten metres and every tree behind that hung in the air. A slope is
+        # something a ray can actually hit.
+        def rise(z):
+            return s.rise * np.maximum(z - 4.0, 0.0)
+
+        # the tilt costs the plane SDF its unit gradient; keep it conservative
+        rise_norm = math.sqrt(1.0 + s.rise * s.rise)
+
         # Trunks. A mild pull toward the distance so the stand closes up ahead
         # of you, then two thick ones planted close on either side of the path
         # so you are looking *into* the forest, not at a clearing edge.
         u = rng.random(n_t).astype(F32)
-        tz = (2.4 + u ** 1.25 * 30.0).astype(F32)
+        tz = (2.4 + u ** 1.25 * _TREE_DEPTH).astype(F32)
         tx = rng.uniform(-13.0, 13.0, n_t).astype(F32)
         tr = (rng.uniform(0.11, 0.24, n_t) * (1.0 + tz / 22.0)).astype(F32)
         tls = rng.uniform(-0.05, 0.05, n_t).astype(F32)      # per-trunk lean
@@ -197,8 +210,11 @@ def _air_fn(s: Scene, detail=False):
             hit = np.abs(off) < margin
             tx[hit] = cx[hit] + np.where(off[hit] < 0, -1.0, 1.0) * margin[hit]
         TX, TZ, TR, TLS = tx[None, :], tz[None, :], tr[None, :], tls[None, :]
-        CY, CR, TOP = ((s.floor + crown_h)[None, :], crown_r[None, :],
-                       top_h[None, :])
+        # everything a tree carries sits on the ground where that tree stands
+        t_rise = rise(tz)
+        RISE_T = t_rise[None, :]
+        CY, CR, TOP = ((s.floor + t_rise + crown_h)[None, :], crown_r[None, :],
+                       (t_rise + top_h)[None, :])
 
         n_b = 0 if s.deadwood else int(n_t * s.understory)
         if n_b:
@@ -213,20 +229,25 @@ def _air_fn(s: Scene, detail=False):
                 hb = np.abs(ob) < mb
                 bx[hb] = cxb[hb] + np.where(ob[hb] < 0, -1.0, 1.0) * mb[hb]
             BX, BZ = bx[None, :], bz[None, :]
-            BCY = (s.floor + bh * 0.3)[None, :]
+            BCY = (s.floor + rise(bz) + bh * 0.3)[None, :]
             bry = bh * 0.6
             BINV, BYINV = (1.0 / br)[None, :], (1.0 / bry)[None, :]
             BSCALE = np.minimum(br, bry)[None, :]
 
         def air(px, py, pz):
-            yb = (py - s.floor)[:, None]
+            # height over the ground under this point, and — per tree — over
+            # the ground where that tree stands: a trunk is as tall as its
+            # own patch of hill, not as tall as the bottom of the slope
+            g = py - s.floor - rise(pz)
+            yb = (py - s.floor)[:, None] - RISE_T
             disp = rock(px, py, pz) * 0.6
             if s.path:
                 c = centreline(pz)
                 onp = 1.0 / (1.0 + ((px - c) / s.path) ** 2 * 1.6)
-                ground = (py - s.floor) - disp * (1.0 - 0.7 * onp) - 0.10 * onp
+                ground = g - disp * (1.0 - 0.7 * onp) - 0.10 * onp
             else:
-                ground = (py - s.floor) - disp
+                ground = g - disp
+            ground = ground / rise_norm
 
             # trunks: a per-trunk lean, a taper up, a flare at the root
             ybc = np.clip(yb, 0.0, 9.0)
@@ -352,6 +373,7 @@ def _lut(name):
 # --------------------------------------------------------------------------
 
 _FOREST_TAN = 1.6     # widest lens a forest gets, as a half-angle tangent
+_TREE_DEPTH = 30.0    # how far back the stand is planted
 
 
 def _render(s: Scene, light: float, w: int, h: int) -> Image.Image:
@@ -479,17 +501,17 @@ SCENES = {
 
 # ----- the park, at dusk ---------------------------------------------------
 "trailhead": Scene(kind="forest", trees=19, canopy=6.6, understory=0.9, path=1.7,
-                   floor=-1.5, rough=0.30, freq=0.6, tilt=-0.05, palette="dusk",
-                   sky=0.42, fog=48.0, var=21.0),
+                   rise=0.14, floor=-1.5, rough=0.30, freq=0.6, tilt=0.08,
+                   palette="dusk", sky=0.42, fog=48.0, var=21.0),
 "ridge_trail": Scene(kind="forest", trees=21, canopy=3.4, understory=1.2,
-                     path=1.35, floor=-1.4, rough=0.42, freq=0.7, tilt=-0.05,
-                     palette="dusk", sky=0.36, fog=40.0, var=22.0),
+                     path=1.35, rise=0.11, floor=-1.4, rough=0.42, freq=0.7,
+                     tilt=0.06, palette="dusk", sky=0.36, fog=40.0, var=22.0),
 "blowdown": Scene(kind="forest", trees=30, canopy=7.5, deadwood=True, path=2.4,
-                  floor=-1.3, rough=0.34, freq=0.5, tilt=-0.08, palette="dusk",
-                  sky=0.40, fog=42.0, var=23.0),
+                  rise=0.13, floor=-1.3, rough=0.34, freq=0.5, tilt=0.05,
+                  palette="dusk", sky=0.40, fog=42.0, var=23.0),
 "hollow": Scene(kind="forest", trees=19, canopy=5.2, understory=1.1, path=1.2,
-                floor=-1.35, rough=0.55, freq=0.55, tilt=-0.05, palette="dusk",
-                sky=0.22, fog=28.0, var=24.0),
+                rise=0.20, floor=-1.35, rough=0.55, freq=0.55, tilt=0.06,
+                palette="dusk", sky=0.22, fog=28.0, var=24.0),
 "basecamp": Scene(kind="hole", floor=-1.5, hole_r=2.9, hole_z=5.0,
                   depth_below=13.0, rough=0.45, tilt=-0.32, palette="dusk",
                   sky=0.24, fog=50.0, reach=8.0, var=25.0),
@@ -564,11 +586,11 @@ def sky_band(daylight):
     return 4
 
 
-# A canopy carries a few dozen soft blobs on top of the trunks, and each one
-# is another distance to every marched ray. Rather than thin the woods out,
-# render the leafy scenes at a coarser grid and let the upscale blur it —
+# A stand is a few dozen trunks and crowns, and every one of them is another
+# distance to every marched ray, over a lot of steps. Rather than thin the
+# woods out, render forests on a coarser grid and let the upscale blur it —
 # which is close to what dusk under a canopy actually looks like.
-_FOREST_BUDGET = 50_000
+_FOREST_BUDGET = 44_000
 
 
 @lru_cache(maxsize=72)
@@ -579,8 +601,7 @@ def frame(room_id, band, sky, w, h):
         s = replace(s, sky=s.sky * _SKY_STEPS[sky], day=_SKY_STEPS[sky])
 
     rw, rh = w, h
-    leafy = s.kind == "forest" and s.canopy and not s.deadwood
-    if leafy and w * h > _FOREST_BUDGET:
+    if s.kind == "forest" and w * h > _FOREST_BUDGET:
         k = (_FOREST_BUDGET / (w * h)) ** 0.5
         rw, rh = max(8, round(w * k)), max(8, round(h * k))
 
