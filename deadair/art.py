@@ -85,7 +85,10 @@ class Scene:
     hole_z: float = 5.2         # how far ahead the hole sits
     depth_below: float = 12.0   # how deep the hole goes before rock
     trees: int = 0              # trunk count for kind="forest"
-    canopy: float = 0.0         # height of the leaf layer, 0 for open sky
+    canopy: float = 0.0         # crown-centre height above the floor, 0 = bare
+    understory: float = 0.0     # low-brush density, as a multiple of `trees`
+    path: float = 0.0           # half-width of a cleared path, 0 = none
+    deadwood: bool = False      # bare standing trunks — no crowns, no brush
     fog: float = 16.0           # scatter distance
     reach: float = 9.0          # lamp falloff distance at full power
     palette: str = "cave"       # cave | dusk | night
@@ -159,23 +162,104 @@ def _air_fn(s: Scene, detail=False):
     elif s.kind == "forest":
         rng = np.random.default_rng(int(v * 1000) + 7)
         n_t = max(1, s.trees)
-        tx = rng.uniform(-11.0, 11.0, n_t).astype(F32)
-        tz = rng.uniform(2.5, 30.0, n_t).astype(F32)
-        tr = (rng.uniform(0.09, 0.26, n_t) * (1.0 + tz / 30.0)).astype(F32)
-        near = (np.abs(tx) < 0.8) & (tz < 3.5)      # not in the camera's lap
-        tx[near] = tx[near] + 2.4
-        TX, TZ, TR = tx[None, :], tz[None, :], tr[None, :]
+
+        def centreline(z):
+            """Where the path runs, as it wanders off ahead of you."""
+            return 1.1 * np.sin(z * 0.13 + v) + 0.5 * np.sin(z * 0.37 + v * 1.7)
+
+        # Trunks. A mild pull toward the distance so the stand closes up ahead
+        # of you, then two thick ones planted close on either side of the path
+        # so you are looking *into* the forest, not at a clearing edge.
+        u = rng.random(n_t).astype(F32)
+        tz = (2.4 + u ** 1.25 * 30.0).astype(F32)
+        tx = rng.uniform(-13.0, 13.0, n_t).astype(F32)
+        tr = (rng.uniform(0.11, 0.24, n_t) * (1.0 + tz / 22.0)).astype(F32)
+        tls = rng.uniform(-0.05, 0.05, n_t).astype(F32)      # per-trunk lean
+        crown_h = (s.canopy + rng.uniform(-0.7, 1.6, n_t)).astype(F32)
+        crown_r = rng.uniform(1.7, 3.1, n_t).astype(F32)
+
+        if n_t >= 5:
+            fr = np.argsort(tz)[:2]
+            tz[fr] = rng.uniform(3.2, 5.2, 2)
+            tr[fr] = rng.uniform(0.16, 0.24, 2)
+            tls[fr] = rng.uniform(-0.02, 0.02, 2)
+            side = np.array([-1.0, 1.0], dtype=F32)
+            tx[fr] = side * ((s.path or 1.4) + rng.uniform(1.2, 2.8, 2))
+            crown_h[fr] = s.canopy + rng.uniform(0.0, 1.4, 2)
+
+        top_h = crown_h + (2.8 if s.canopy else 6.0)
+        near = (np.abs(tx) < 0.7) & (tz < 2.8)       # not in the camera's lap
+        tx[near] = tx[near] + 2.6
+        if s.path:
+            cx = centreline(tz)
+            margin = s.path + tr + 0.35
+            off = tx - cx
+            hit = np.abs(off) < margin
+            tx[hit] = cx[hit] + np.where(off[hit] < 0, -1.0, 1.0) * margin[hit]
+        TX, TZ, TR, TLS = tx[None, :], tz[None, :], tr[None, :], tls[None, :]
+        CY, CR, TOP = ((s.floor + crown_h)[None, :], crown_r[None, :],
+                       top_h[None, :])
+
+        n_b = 0 if s.deadwood else int(n_t * s.understory)
+        if n_b:
+            bz = (1.4 + rng.random(n_b).astype(F32) ** 1.3 * 21.0)
+            bx = rng.uniform(-12.0, 12.0, n_b).astype(F32)
+            br = rng.uniform(0.55, 1.5, n_b).astype(F32)
+            bh = rng.uniform(0.45, 1.25, n_b).astype(F32)
+            if s.path:                       # brush lines the path, not on it
+                cxb = centreline(bz)
+                mb = s.path + br * 0.45
+                ob = bx - cxb
+                hb = np.abs(ob) < mb
+                bx[hb] = cxb[hb] + np.where(ob[hb] < 0, -1.0, 1.0) * mb[hb]
+            BX, BZ = bx[None, :], bz[None, :]
+            BCY = (s.floor + bh * 0.3)[None, :]
+            bry = bh * 0.6
+            BINV, BYINV = (1.0 / br)[None, :], (1.0 / bry)[None, :]
+            BSCALE = np.minimum(br, bry)[None, :]
 
         def air(px, py, pz):
-            ground = py - s.floor - rock(px, py, pz) * 0.6
-            lean = (py - s.floor) * 0.03
-            d = np.sqrt((px[:, None] - TX - lean[:, None]) ** 2
-                        + (pz[:, None] - TZ) ** 2) - TR
-            a = np.minimum(ground, d.min(axis=1))
-            if s.canopy:
-                leaf = _noise(px * 0.55 + v, py * 0.30, pz * 0.55)
-                slab = np.minimum(py - s.canopy, s.canopy + 3.4 - py)
-                a = np.minimum(a, -np.minimum(slab, (leaf - 0.42) * 2.2))
+            yb = (py - s.floor)[:, None]
+            disp = rock(px, py, pz) * 0.6
+            if s.path:
+                c = centreline(pz)
+                onp = 1.0 / (1.0 + ((px - c) / s.path) ** 2 * 1.6)
+                ground = (py - s.floor) - disp * (1.0 - 0.7 * onp) - 0.10 * onp
+            else:
+                ground = (py - s.floor) - disp
+
+            # trunks: a per-trunk lean, a taper up, a flare at the root
+            ybc = np.clip(yb, 0.0, 9.0)
+            hx = px[:, None] - TX - TLS * ybc
+            hz = pz[:, None] - TZ
+            trad = TR * (1.12 - 0.4 * np.clip(yb / 9.0, 0.0, 1.0)
+                         - 0.5 * np.clip(yb - 0.9, -0.9, 0.0))
+            trunk = np.sqrt(hx * hx + hz * hz) - trad
+            trunk = np.maximum(trunk, yb - TOP)
+            a = _smin(ground, trunk.min(axis=1), 0.25)
+
+            if s.canopy and not s.deadwood:
+                # crowns share the trunk offset — a flattened blob per tree,
+                # merged soft so the stand carries one ragged canopy
+                cdy = (py[:, None] - CY) * 1.6
+                crown = np.sqrt(hx * hx + cdy * cdy + hz * hz) - CR
+                # one cheap tap, and it only ever carves the crown back, never
+                # bulges it — a bulge hangs threads off the underside
+                crown = crown.min(axis=1) + np.clip(
+                    0.55 - _noise(px * 0.5 + v, py * 0.4, pz * 0.5),
+                    0.0, 0.55) * 2.2
+                a = _smin(a, crown, 0.55)
+
+            if n_b:
+                qx = (px[:, None] - BX) * BINV
+                qy = (py[:, None] - BCY) * BYINV
+                qz = (pz[:, None] - BZ) * BINV
+                bush = (np.sqrt(qx * qx + qy * qy + qz * qz) - 1.0) * BSCALE
+                bush = bush.min(axis=1)
+                if detail:
+                    bush = bush - (
+                        _noise(px * 0.8 - v, py * 0.7, pz * 0.8) - 0.5) * 0.8
+                a = _smin(a, bush, 0.3)
             return a
 
     else:                                            # "void"
@@ -287,7 +371,12 @@ def _render(s: Scene, light: float, w: int, h: int) -> Image.Image:
     surface = s.kind in ("forest", "hole")
     # Above ground the dominant surface is an exact plane, so the march can
     # stride out; underground the displaced tube needs small careful steps.
-    mp = dict(steps=30, factor=0.92, eps=0.03) if surface else {}
+    if s.kind == "forest":
+        mp = dict(steps=22, factor=0.92, eps=0.05)
+    elif surface:
+        mp = dict(steps=30, factor=0.92, eps=0.03)
+    else:
+        mp = {}
     t, hit = _march(coarse, dx, dy, dz, **mp)
 
     hx, hy, hz = dx * t, dy * t, dz * t
@@ -379,14 +468,18 @@ _PASS = dict(kind="tube", bend=0.55, rough=0.48, bed=0.10)
 SCENES = {
 
 # ----- the park, at dusk ---------------------------------------------------
-"trailhead": Scene(kind="forest", trees=13, canopy=5.4, floor=-1.5, rough=0.30,
-                   tilt=-0.05, palette="dusk", sky=0.34, fog=52.0, var=21.0),
-"ridge_trail": Scene(kind="forest", trees=22, canopy=4.0, floor=-1.4, rough=0.42,
-                     tilt=-0.06, palette="dusk", sky=0.30, fog=42.0, var=22.0),
-"blowdown": Scene(kind="forest", trees=26, canopy=3.4, floor=-1.3, rough=0.75,
-                  tilt=-0.10, palette="dusk", sky=0.26, fog=34.0, var=23.0),
-"hollow": Scene(kind="forest", trees=30, canopy=3.0, floor=-1.35, rough=0.55,
-                tilt=-0.07, palette="dusk", sky=0.20, fog=28.0, var=24.0),
+"trailhead": Scene(kind="forest", trees=19, canopy=6.6, understory=0.9, path=1.7,
+                   floor=-1.5, rough=0.30, freq=0.6, tilt=-0.05, palette="dusk",
+                   sky=0.42, fog=48.0, var=21.0),
+"ridge_trail": Scene(kind="forest", trees=21, canopy=3.4, understory=1.2,
+                     path=1.35, floor=-1.4, rough=0.42, freq=0.7, tilt=-0.05,
+                     palette="dusk", sky=0.36, fog=40.0, var=22.0),
+"blowdown": Scene(kind="forest", trees=30, canopy=7.5, deadwood=True, path=2.4,
+                  floor=-1.3, rough=0.34, freq=0.5, tilt=-0.08, palette="dusk",
+                  sky=0.40, fog=42.0, var=23.0),
+"hollow": Scene(kind="forest", trees=19, canopy=5.2, understory=1.1, path=1.2,
+                floor=-1.35, rough=0.55, freq=0.55, tilt=-0.05, palette="dusk",
+                sky=0.22, fog=28.0, var=24.0),
 "basecamp": Scene(kind="hole", floor=-1.5, hole_r=2.9, hole_z=5.0,
                   depth_below=13.0, rough=0.45, tilt=-0.32, palette="dusk",
                   sky=0.24, fog=50.0, reach=8.0, var=25.0),
@@ -461,10 +554,27 @@ def sky_band(daylight):
     return 4
 
 
+# A canopy carries a few dozen soft blobs on top of the trunks, and each one
+# is another distance to every marched ray. Rather than thin the woods out,
+# render the leafy scenes at a coarser grid and let the upscale blur it —
+# which is close to what dusk under a canopy actually looks like.
+_FOREST_BUDGET = 62_000
+
+
 @lru_cache(maxsize=72)
 def frame(room_id, band, sky, w, h):
     """The lamp's-eye view of a room. Cached; safe to call from a thread."""
     s = SCENES.get(room_id, _DEFAULT)
     if s.sky:
         s = replace(s, sky=s.sky * _SKY_STEPS[sky], day=_SKY_STEPS[sky])
-    return _render(s, _LIGHT_STEPS[band], w, h)
+
+    rw, rh = w, h
+    leafy = s.kind == "forest" and s.canopy and not s.deadwood
+    if leafy and w * h > _FOREST_BUDGET:
+        k = (_FOREST_BUDGET / (w * h)) ** 0.5
+        rw, rh = max(8, round(w * k)), max(8, round(h * k))
+
+    img = _render(s, _LIGHT_STEPS[band], rw, rh)
+    if (rw, rh) != (w, h):
+        img = img.resize((w, h), Image.BILINEAR)
+    return img
