@@ -9,7 +9,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Static
 
-from . import art, save
+from . import art, save, update
 from .content import ROOMS
 from .state import Game, ROPE_TOTAL, DAYLIGHT_TOTAL, PARK_START
 
@@ -57,6 +57,9 @@ TITLE_ART = [
     "█  █ █    █  █ █  █    █  █  █  █ █ ",
     "███  ████ █  █ ███     █  █ ███ █  █",
 ]
+# pad to a common width so text-align: center shifts the block, not each line
+_TITLE_W = max(len(line) for line in TITLE_ART)
+TITLE_ART = [line.ljust(_TITLE_W) for line in TITLE_ART]
 
 FRONT_CSS = """
 Screen { background: #0d0c0b; color: #cdc6bb; align: center middle; }
@@ -65,6 +68,8 @@ Screen { background: #0d0c0b; color: #cdc6bb; align: center middle; }
 #card Static { width: auto; height: auto; }
 #art { color: #f0b46b; margin: 0 0 1 0; }
 #blurb { color: #6d675e; margin: 0 0 2 0; }
+#card #art, #card #blurb { width: 100%; text-align: center; }
+#update { margin: 0 0 2 0; }
 #items { height: auto; }
 #foot { color: #4a453f; margin: 2 0 0 0; }
 """
@@ -85,8 +90,9 @@ class Controls(Screen):
         ("D", "stop the beam down: half the burn, half the sight"),
         ("C", "swap in a spare cell"),
         ("N", "abandon this run and start a new one"),
-        ("ESC", "back to this menu — the run keeps where it stands"),
-        ("Q", "quit — the run keeps where it stands"),
+        ("Q", "back to the menu — the run keeps where it stands, and the "
+              "menu has NEW RUN and QUIT in it"),
+        ("ESC", "the same as Q"),
     ]
 
     def compose(self) -> ComposeResult:
@@ -110,7 +116,8 @@ class Controls(Screen):
         if event.key == "ctrl+c":
             return
         event.stop()
-        self.dismiss()
+        if self.app.accepting_input():
+            self.dismiss()
 
 
 class Menu(Screen):
@@ -158,19 +165,25 @@ class Menu(Screen):
             yield Static("\n".join(TITLE_ART), id="art")
             yield Static("Piney Ridge National Park.  One subject, "
                          "nineteen hours overdue.", id="blurb")
+            notice = getattr(self.app, "_update_notice", None)
+            if notice:
+                yield Static(f"[#8fc98f]{notice}[/]", id="update")
             yield Static("\n\n".join(rows), id="items")
             yield Static("a number to choose", id="foot")
 
     def action_pick(self, idx: int):
+        if not self.app.accepting_input():
+            return
         opts = self.options()
         if idx < len(opts):
             self.choose(opts[idx][0])
 
     def action_pick_quit(self):
-        self.choose("quit")
+        if self.app.accepting_input():
+            self.choose("quit")
 
     def action_resume_run(self):
-        if self.in_run:
+        if self.in_run and self.app.accepting_input():
             self.choose("back")
 
     def choose(self, what):
@@ -229,7 +242,7 @@ class DeadAir(App):
         Binding("f", "lamp", "lamp"),
         Binding("n", "restart", "new run"),
         Binding("escape", "menu", "menu"),
-        Binding("q", "quit", "quit"),
+        Binding("q", "quit", "menu"),
     ]
 
     def __init__(self, seed=None):
@@ -239,6 +252,8 @@ class DeadAir(App):
         self._started = False   # until the menu says which run this is
         self._view_key = None
         self._can_draw = False
+        self._update_notice = None   # "a newer one is out", set at mount
+        self._input_ready = False    # see accepting_input()
 
     # -- layout -------------------------------------------------------------
 
@@ -267,13 +282,54 @@ class DeadAir(App):
     def on_mount(self):
         if not self._can_draw:
             self.query_one("#viewport").add_class("gone")
+        update.check_in_background()          # refreshes the once-a-day cache
+        self._update_notice = update.notice()  # reads it, never the network
         self.refresh_panels()
+        self.settle(0.5)      # the capability probe answers within a frame
         self.open_menu()
+
+    # -- who is allowed to press what ---------------------------------------
+
+    def settle(self, delay=0.3):
+        """Ignore input briefly — at startup, and across every screen change.
+
+        Drawing in a terminal means asking the terminal what it can do, and
+        textual-image asks for the cell size the moment the viewport is
+        built. A terminal that does not answer that cleanly — Windows
+        conhost, notably — leaves its reply sitting in the input stream,
+        where it reads as a run of digits. Digits are how you choose, so
+        the front screen answers itself, the run it starts answers itself
+        too, and the game plays itself to an ending while you watch.
+
+        A timer alone is a race, so this re-arms on every transition as
+        well. A burst can then cross at most one screen and never cascade:
+        the worst it can do is start a run you did not ask for, which is
+        one Q away from the menu again.
+        """
+        self._input_ready = False
+        self.set_timer(delay, self._open_input)
+
+    def _open_input(self):
+        self._input_ready = True
+
+    def accepting_input(self):
+        return self._input_ready
+
+    def playing(self):
+        """True only when a chosen run is the screen you are looking at.
+
+        The game's keys are App bindings, so they stay live underneath the
+        menu unless something stops them. Nothing should reach the run
+        while you are still deciding whether to start one.
+        """
+        return (self._input_ready and self._started
+                and len(self.screen_stack) == 1)
 
     # -- the front of the game ----------------------------------------------
 
     def open_menu(self):
         """Nobody gets dropped down a hole they did not ask to go down."""
+        self.settle()
         saved = None if self._started else save.load()
         if saved is not None and self.seed is None:
             self.seed = saved.seed
@@ -292,6 +348,7 @@ class DeadAir(App):
 
     def begin(self, game, opening):
         """Put `game` on the screen with `opening` above it in the log."""
+        self.settle()
         self.game = game
         self._started = True
         self._view_key = None
@@ -596,7 +653,7 @@ class DeadAir(App):
         g = self.game
         if g.ending:
             self.query_one("#actions", Static).update(
-                "[#8d867c]  N  new run    ESC  menu    Q  quit[/]")
+                "[#8d867c]  N  new run    Q  menu[/]")
             return
         rows = []
         for i, (kind, label, ok, why, _) in enumerate(g.choices()):
@@ -616,6 +673,7 @@ class DeadAir(App):
             rows.append("[#8d867c] L[/] listen   [#8d867c]R[/] radio   "
                         "[#8d867c]X[/] look again   [#8d867c]D[/] dim beam   "
                         "[#8d867c]C[/] swap cell")
+        rows.append("[#8d867c] Q[/] menu")
         self.query_one("#actions", Static).update("\n".join(rows))
 
     # -- actions ------------------------------------------------------------
@@ -641,45 +699,53 @@ class DeadAir(App):
         ev.append(("sys", f"Out at {g.surface_clock()}.  Elapsed {g.clock()}. "
                           f" Deepest point {deepest} m.  "
                           f"{self.surveyed()} passages surveyed."))
-        ev.append(("sys", "N for a new run.  ESC for the menu.  "
-                          "Q to quit."))
+        ev.append(("sys", "N for a new run.  Q for the menu."))
         self.emit(ev)
 
     def action_choose(self, idx: int):
-        if self.game.ending:
+        if not self.playing() or self.game.ending:
             return
         self.after(self.game.act(idx))
 
     def action_listen(self):
-        if not self.game.ending:
+        if self.playing() and not self.game.ending:
             self.after(self.game.listen())
 
     def action_radio(self):
-        if not self.game.ending:
+        if self.playing() and not self.game.ending:
             self.after(self.game.radio())
 
     def action_look(self):
-        if not self.game.ending:
+        if self.playing() and not self.game.ending:
             self.after(self.game.look())
 
     def action_dim(self):
-        if not self.game.ending and self.game.phase == "cave":
+        if self.playing() and not self.game.ending and self.game.phase == "cave":
             self.after(self.game.toggle_dim())
 
     def action_lamp(self):
-        if not self.game.ending:
+        if self.playing() and not self.game.ending:
             self.after(self.game.toggle_lamp())
 
     def action_cell(self):
-        if not self.game.ending and self.game.phase == "cave":
+        if self.playing() and not self.game.ending and self.game.phase == "cave":
             self.after(self.game.swap_cell())
 
     def action_restart(self):
-        self.start_run()
+        if self.playing():
+            self.start_run()
 
     def action_menu(self):
+        if not self.playing():
+            return
         self.autosave()
         self.open_menu()
+
+    def action_quit(self):
+        # Q goes to the menu, not straight out — NEW RUN and QUIT are both
+        # there, and the run has been autosaving all along, so it is safe
+        # either way.
+        self.action_menu()
 
 
 def parse_args(argv=None):

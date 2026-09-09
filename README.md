@@ -36,6 +36,19 @@ Then, from anywhere:
 Pass `--seed N` to fix the run's coin-flips — the same seed always gives you
 the same cave noises. `--help` lists the options.
 
+## Updating
+
+PyPI does not push updates — you pick them up when you ask for them:
+
+    pipx upgrade deadair          # or: pipx upgrade-all
+    pip install --upgrade deadair  # if you used plain pip
+
+Once a day, on startup, the game quietly asks PyPI whether there is a newer
+release and caches the answer; if you are behind, the menu says so and tells
+you the command. The check runs on a background thread, times out fast, and
+fails silently when you are offline. Set `DEADAIR_NO_UPDATE_CHECK` to any
+value to turn it off. Running from a clone never checks.
+
 ## Running from a clone
 
 If you would rather have the source to hand:
@@ -58,8 +71,7 @@ If you would rather have the source to hand:
 | `D`   | stop the beam down — half the burn rate, half the sight |
 | `C`   | swap in a spare cell |
 | `N`   | new run |
-| `ESC` | back to the menu |
-| `Q`   | quit |
+| `Q` / `ESC` | back to the menu (which has new run and quit) |
 
 `F` is for above ground — you start in daylight with the lamp off, and the
 evening does not wait for you. `D` and `C` are underground only, where the
