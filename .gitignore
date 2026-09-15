@@ -3,3 +3,4 @@ __pycache__/
 *.py[cod]
 dist/
 *.egg-info/
+dialogue_and_prose.txt

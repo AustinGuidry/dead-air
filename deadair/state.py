@@ -715,15 +715,15 @@ TIMED = ("OUT_WITH", "OUT_ALONE")
 
 ENDINGS = {
 "OUT_WITH": ("YOU CAME OUT", "good",
-    "You come out of the Letterbox into a smell you had forgotten existed, "
-    "which is dirt with things growing in it.\n\n"
-    "It is {clock} and {sky}, and there are eleven people at the sink, and "
-    "one of them is holding a thermos, and one of them is Wren Alcott's "
-    "mother.\n\n"
+    "You come out of the Letterbox into a smell you had forgotten existed: "
+    "dirt with things growing in it. Life.\n\n"
+    "It is {clock} and {sky}, and there are eleven people at the sink. One "
+    "of them is holding a thermos, and the second one you notice is Wren "
+    "Alcott's mother.\n\n"
     "You hand over the helmet. The lamp is still burning. It burns for "
     "another six days in an evidence locker in the county seat and then it "
-    "stops, all at once, at 03:11 in the morning, and the deputy who logs "
-    "it writes CELL EXHAUSTED because there is no other box to tick.\n\n"
+    "stops, all at once, at 03:04 in the morning, and the deputy who logs "
+    "it writes BATTERY DEPLETED because there is no other box to tick.\n\n"
     "Wolf Sink is gated in November. The park calls it a bat conservation "
     "measure.\n\n"
     "There are no bats in Wolf Sink."),
@@ -813,7 +813,7 @@ ENDINGS = {
 "DARK": ("LAMP FAILURE", "alarm",
     "They find you on the fourth day, at the foot of the pitch, sitting up "
     "with your back to the wall, hypothermic and eleven hours past saving.\n\n"
-    "Your lamp is in your lap, switched off, with a fresh cell in it."),
+    "Your lamp is in your lap, switched off, with a fresh battery in it."),
 
 "AIR": ("BAD AIR", "alarm",
     "The recovery team wears breathing apparatus into the Sallow and finds "
