@@ -740,7 +740,7 @@ ENDINGS = {
     "it is, and it is not far."),
 
 "RESCUE": ("YOU BROUGHT HER OUT", "good",
-    "Eleven metres of broken rock at forty degrees, and something in it "
+    "Fifteen metres of broken rock at forty degrees, and something in it "
     "with you.\n\n"
     "You can hear it in the rock — not a sound it makes, a sound the rock "
     "makes having it against them — and it is closing a distance the two of "
@@ -753,8 +753,9 @@ ENDINGS = {
     "known what it was for.\n\n"
     "You hold it in the grey. The light goes through it and lands on the "
     "dark behind Wren's shoulder as a point the size of a match head, and "
-    "the point is white, and it is hot, and for the first time in nineteen "
-    "hours the thing in the cave makes a sound that is unmistakably its "
+    "the point is white, and it is hot, and for the first time in "
+    "twenty-two hours the thing in the cave makes a sound that is "
+    "unmistakably its "
     "own.\n\n"
     "It comes apart from the light. Not away — apart. You keep the point on "
     "it until she is past you and up and out into the open air, and then "
@@ -770,7 +771,7 @@ ENDINGS = {
     "laugh."),
 
 "RESCUE_HARD": ("YOU BROUGHT HER OUT", "sys",
-    "Eleven metres of broken rock at forty degrees. You go up it. She goes "
+    "Fifteen metres of broken rock at forty degrees. You go up it. She goes "
     "up it. Something goes up it behind her.\n\n"
     "You do not stop and you do not look. You get a hand on her collar "
     "where the rock pinches and you drag her through it into the open, out "

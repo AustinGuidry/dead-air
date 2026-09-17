@@ -100,8 +100,8 @@ ROOMS = {
     first=(
         "Wren Alcott. Twenty-six. Solo, which is the whole problem. Her "
         "car has been at the trailhead nineteen hours and her permit says "
-        "Wolf Sink, and Wolf Sink is a name that made three people at "
-        "basecamp go quiet when you read it aloud.\n\n"
+        "Wolf Sink, and Wolf Sink is a name that made three old timers at "
+        "the ranger station go quiet when you read it aloud.\n\n"
         "You do the checks the way you were taught, out loud, alone in the "
         "hemlocks. Primary lamp. Spare battery. Sixty metres of rope. "
         "Radio.\n\n"
@@ -308,7 +308,7 @@ ROOMS = {
                     "your lamp flame — you don't have a flame, you have an "
                     "LED, and still something about the light goes yellow."),
         Exit(label="Climb the rope out", to="pitch_head", mins=16,
-             travel="You get back on the rope and start prusiking. Twelve "
+             travel="You get back on the rope and start climbing. Twelve "
                     "metres takes sixteen minutes and every one of them is "
                     "yours."),
     ],
@@ -477,10 +477,11 @@ ROOMS = {
     exits=[
         Exit(label="Follow the footprints", to="deep", mins=15,
              travel="You follow them. They are Wren's size. Their stride "
-                    "does not shorten, does not stumble, does not deviate. "
-                    "Whoever walked this walked it calmly, in the dark, "
-                    "with no light at all — there is no lamp-splash on the "
-                    "silt, and there would be."),
+                    "does not shorten, does not stumble, does not deviate "
+                    "— no widened stance for balance, no hand-drag low on "
+                    "the wall where anyone feeling their way would have "
+                    "left one. Whoever walked this walked it like they "
+                    "knew exactly where they were going."),
         Exit(label="East, along the wall", to="ladder", mins=9,
              travel="You keep your left hand on the wall and work east, "
                     "which is what you do in a room you cannot see the "
@@ -534,8 +535,8 @@ ROOMS = {
         "You kneel by the suit. It is dry. It has been dry for a long time "
         "in a cave where nothing is dry, and it is warm, the way cloth is "
         "warm when someone has just got out of it.\n\n"
-        "The helmet lamp has been burning for nineteen hours on a battery "
-        "rated for eight.\n\n"
+        "The helmet lamp has been burning for twenty-one hours on a "
+        "battery rated for eight.\n\n"
         "Behind you, from the direction you came, at a distance you could "
         "walk in ninety seconds, someone says your name.\n\n"
         "It is not Wren's voice. It is not anyone's voice. It is the voice "
@@ -585,7 +586,7 @@ ROOMS = {
         "She says your name.\n\n"
         "Not the way the dark said it. She reads it off the tape on your "
         "chest, the way a person does, squinting, and she gets it slightly "
-        "wrong, and that small wrongness is the first thing in nineteen "
+        "wrong, and that small wrongness is the first thing in twenty-two "
         "hours that has been unambiguously good.\n\n"
         "\"Don't put the light on it,\" she says. \"Not yet. It's been "
         "asleep about an hour and I've been counting.\"\n\n"
@@ -829,7 +830,8 @@ PARK = {
              "Inside: a change of clothes folded on the passenger seat, a "
              "receipt from a gas station in Blakely timestamped 05:41 "
              "yesterday, and, in the door pocket, a second permit — same "
-             "hand, same box ticked, dated three weeks ago.\n\n"
+             "hand, same box ticked, dated three weeks ago. In the back, a "
+             "half-used reel of orange flagging tape.\n\n"
              "Wren has been here before. More than once.\n\n"
              "There's a note from Trammell on the seat: 'Talk to me about "
              "the thing in the door. I've got it here with me.' Whatever "
@@ -1034,7 +1036,7 @@ PARK = {
         "of a springhouse over a run of water that still works.",
         "And apple — two apple trees, gone wild and barely holding on in "
         "the shade, which nobody plants by accident. This was a place with "
-        "a family in it, nine hundred yards from the sink, and not on the "
+        "a family in it, nine hundred metres from the sink, and not on the "
         "park map either. You make a note to ask someone about the "
         "homestead later, and regret not asking more questions back at the "
         "station."
@@ -1119,7 +1121,9 @@ PARK = {
              "got the surface.\" He does not waste your time. \"There's a "
              "survey you can look at, eleven pages from seventy-three. "
              "Surveyor's note says it's incomplete. Rigging's on you. "
-             "You've got sixty metres, two spares, and the set.\"",
+             "You've got sixty metres, two spares, and the set. If you "
+             "find flagging down there, orange is hers — off a reel in "
+             "the hatchback. Only colour we can tie to her for certain.\"",
              "brief"),
             ("\"Comms is going to be garbage. We'll hold the frequency and "
              "take whatever we get.\" He taps the map twice, on nothing. "
@@ -1311,7 +1315,7 @@ PAYOFFS = {
 
 "stream": {
     "clue:spring": "Downstream is north-west. Downstream, over your head "
-                   "and nine hundred yards of it, is a springhouse in a "
+                   "and nine hundred metres of it, is a springhouse in a "
                    "hollow with a course of mortared fieldstone in the "
                    "mouth of it. This water and that water are the same "
                    "water. Somebody worked that out before you did, and "
