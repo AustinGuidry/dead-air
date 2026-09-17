@@ -30,6 +30,10 @@ CAVE_ROOMS = [r for r in ROOMS.values()
               if "park" not in r.tags and r.id not in ("drowned", "stay")]
 CAVE_IDS = {r.id for r in CAVE_ROOMS}
 
+# where the 1973 survey on the basecamp table actually reaches — it stops at
+# Bell ("SURVEY DISCONTINUED"), so reading clue:map only pre-reveals this far
+SURVEYED_IDS = {"sink", "letterbox", "bell"}
+
 PIXEL_BUDGET = 112_000   # about a second of raymarching per frame
 
 # What a resumed run says instead of the opening. It re-describes the room
@@ -616,6 +620,8 @@ class DeadAir(App):
         grid = [[" "] * w for _ in range(h)]
 
         known = set(g.visited) & CAVE_IDS
+        if "clue:map" in g.flags:
+            known |= SURVEYED_IDS
         for rid in list(known):
             for x in ROOMS[rid].exits:
                 if x.to in placed:
