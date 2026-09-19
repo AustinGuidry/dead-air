@@ -17,9 +17,9 @@ LAMP_BURN_HIGH = 0.45      # % per minute, beam wide
 LAMP_BURN_LOW = 0.22       # % per minute, beam stopped down
 AIR_DRAIN = 5.5            # % per minute in a bad-air pocket
 AIR_RECOVER = 4.0          # % per minute in clean air
-ROPE_TOTAL = 60            # metres carried
+ROPE_TOTAL = 60            # meters carried
 PURSUIT_LIMIT = 115        # minutes you have, once you take the helmet
-BYPASS_ROPE = 20           # metres to rig past the collapse
+BYPASS_ROPE = 20           # meters to rig past the collapse
 DAYLIGHT_TOTAL = 85        # minutes of usable dusk in Act One
 PARK_START = 18 * 60 + 40  # 18:40, when you get out of the truck
 DESCENT_START = 2 * 60 + 14   # 02:14, when you put your legs into the cold
@@ -177,7 +177,7 @@ class Game:
                 1: "The lamp drops to a working glow. You can see your "
                    "hands, the rock in front of them, and nothing else.",
                 0: "The filament goes. Not off — down, to an ember, to a "
-                   "colour. You are functionally blind at sixty metres."
+                   "color. You are functionally blind at sixty meters."
             }[self.layers]))
 
         ev += self._check_death()
@@ -465,7 +465,7 @@ class Game:
         if h == "dive":
             self.ending = "SUMP"
             return [("alarm",
-                "Four metres in, the line goes slack in your hand.\n\n"
+                "Four meters in, the line goes slack in your hand.\n\n"
                 "Not cut. Not snagged. Slack, the way a line goes slack when "
                 "the person holding the other end lets go of it, and you are "
                 "in black water under a roof of rock with no surface above "
@@ -482,7 +482,7 @@ class Game:
                     "not hold that much sound, and when you get your light "
                     "up the way you came is a wall.\n\n"
                     "You are not hurt. You are simply on the wrong side of "
-                    "thirty tonnes of rock now, and there is one other way "
+                    "thirty tons of rock now, and there is one other way "
                     "out of here and it is the bad air.")]
             return []
         if h == "took_find":
@@ -585,7 +585,7 @@ class Game:
         """Act One only. Underground the lamp is why you are still alive."""
         if self.phase == "cave":
             return [("sys", "The lamp stays on. That is not a decision you "
-                            "get to make at sixty metres.")]
+                            "get to make at sixty meters.")]
         self.lamp_on = not self.lamp_on
         if not self.lamp_on:
             return [("sys", "You switch the lamp off. Your eyes take a "
@@ -717,13 +717,13 @@ ENDINGS = {
 "OUT_WITH": ("YOU CAME OUT", "good",
     "You come out of the Letterbox into a smell you had forgotten existed: "
     "dirt with things growing in it. Life.\n\n"
-    "It is {clock} and {sky}, and there are eleven people at the sink. One "
-    "of them is holding a thermos, and the second one you notice is Wren "
-    "Alcott's mother.\n\n"
+    "It is {clock} and {sky}, and there is a crowd of people at the sink. One "
+    "of them is holding a thermos, and the second you notice is Wren's "
+    "mother.\n\n"
     "You hand over the helmet. The lamp is still burning. It burns for "
     "another six days in an evidence locker in the county seat and then it "
-    "stops, all at once, at 03:04 in the morning, and the deputy who logs "
-    "it writes BATTERY DEPLETED because there is no other box to tick.\n\n"
+    "stops, all at once, at 03:04am, and the deputy who logs it writes "
+    "BATTERY DEPLETED because there is no other box to tick.\n\n"
     "Wolf Sink is gated in November. The park calls it a bat conservation "
     "measure.\n\n"
     "There are no bats in Wolf Sink."),
@@ -740,14 +740,14 @@ ENDINGS = {
     "it is, and it is not far."),
 
 "RESCUE": ("YOU BROUGHT HER OUT", "good",
-    "Fifteen metres of broken rock at forty degrees, and something in it "
+    "Fifteen meters of broken rock at forty degrees, and something in it "
     "with you.\n\n"
     "You can hear it in the rock — not a sound it makes, a sound the rock "
     "makes having it against them — and it is closing a distance the two of "
     "you cannot close any faster.\n\n"
     "Where the choke opens there is a hand's width of grey. Not lamplight. "
     "The mountain's own, leaking the way it has leaked for a hundred years, "
-    "thin and cold and the exact colour of nothing.\n\n"
+    "thin and cold and the exact color of nothing.\n\n"
     "You take the lens out of your chest pocket. You have been carrying it "
     "since a folding table at the top of a field and you have never once "
     "known what it was for.\n\n"
@@ -771,60 +771,61 @@ ENDINGS = {
     "laugh."),
 
 "RESCUE_HARD": ("YOU BROUGHT HER OUT", "sys",
-    "Fifteen metres of broken rock at forty degrees. You go up it. She goes "
+    "Fifteen meters of broken rock at forty degrees. You go up it. She goes "
     "up it. Something goes up it behind her.\n\n"
-    "You do not stop and you do not look. You get a hand on her collar "
-    "where the rock pinches and you drag her through it into the open, out "
-    "under the hemlocks with the sky going grey, and you turn around with "
-    "your light up and there is nothing in the gap.\n\n"
-    "There was never going to be. It does not come out into the open. That "
-    "is the one rule of it you can prove, and it is also still down there, "
-    "entire, having lost nothing tonight except the two of you.\n\n"
+    "You do not stop and you do not look. You get a hand on her collar where "
+    "the rock pinches and you drag her through it into the open, out under "
+    "the hemlocks with the sky going grey, and you turn around with your "
+    "light up and there is nothing in the gap.\n\n"
+    "There was never going to be. It does not come out into the open. That is "
+    "the one rule of it you can prove. But it is still down there, entire, "
+    "having lost nothing tonight except the two of you.\n\n"
     "Wren Alcott lives. She is in the news for a week. She tells it once, "
-    "plainly, on a local station, and the interviewer's face does the "
-    "thing faces do, and she never tells it again.\n\n"
+    "plainly, on a local station, and the interviewer's face does the thing "
+    "bored news anchors' faces do, and neither Wren nor the anchor ever tells "
+    "the story again.\n\n"
     "Wolf Sink is not gated. There was no reason on paper to gate it. You "
-    "call the district office in November, and again in March, and a third "
-    "time the following autumn, and the third time they stop returning the "
-    "calls.\n\n"
+    "call the district office in November, again in March, and a third time "
+    "the following autumn. After the third time they stop picking up or "
+    "returning your calls.\n\n"
     "Some nights, in a house with the lights on, you can hear the specific "
-    "sound of a room the size of a cathedral, and you know exactly how far "
-    "away it is, and you know it is still being used."),
+    "sound of movement in a room the size of a cathedral. You know exactly "
+    "how far away it is, and you know it is still being used."),
 
 "STAY": ("—", "alarm",
     "And it is so relieved.\n\n"
-    "That is the part you were not ready for — that it has been down here "
-    "in the dark for a length of time you cannot hold in your head, and it "
-    "is so relieved that someone finally answered.\n\n"
+    "That is the part you were not ready for — that it has been down here in "
+    "the dark for a length of time you cannot hold in your head, and it is so "
+    "relieved that someone finally answered.\n\n"
     "It steps forward into your light to show you what it has been "
-    "practising.\n\n"
-    "It has been practising you.\n\n"
-    "Nineteen hours later a SAR officer comes out of Wolf Sink at dawn, "
-    "cold and shaken and entirely themselves, and gives a clean debrief, "
-    "and hands over a folded oversuit, and goes home.\n\n"
+    "practicing.\n\n"
+    "It has been practicing you.\n\n"
+    "Nineteen hours later an SAR officer comes out of Wolf Sink at dawn, cold "
+    "and shaken and entirely themselves, and gives a clean debrief. They hand "
+    "over a folded oversuit and go home.\n\n"
     "Somebody has to. There is a whole park up there, and it is full of "
     "people who go into caves alone."),
 
 "TAKEN": ("—", "alarm",
     "There is no report. There is a callout, and a search, and a second "
     "search, and then a gate.\n\n"
-    "Wolf Sink has three names on the board outside the ranger station now. "
-    "The oldest is from 1911."),
+    "There are three names on the board outside the ranger station now."),
 
 "DARK": ("LAMP FAILURE", "alarm",
     "They find you on the fourth day, at the foot of the pitch, sitting up "
-    "with your back to the wall, hypothermic and eleven hours past saving.\n\n"
-    "Your lamp is in your lap, switched off, with a fresh battery in it."),
+    "with your back to the wall, hypothermic and only hours past saving.\n\n"
+    "Your lamp is in your lap, switched off, a fresh battery in it."),
 
 "AIR": ("BAD AIR", "alarm",
     "The recovery team wears breathing apparatus into the Sallow and finds "
-    "you eighteen metres in, face-down, pointed the wrong way.\n\n"
-    "Everyone agrees it was the CO2. Everyone agrees people get "
-    "disoriented. Nobody wants to talk about why you were crawling deeper."),
+    "you eighteen meters in, face-down, pointed the wrong way.\n\n"
+    "Everyone agrees it was the CO2. Everyone agrees people get disoriented. "
+    "They never debate or wish to talk about any other reasons you might have "
+    "been crawling deeper."),
 
 "SUMP": ("SUMP", "alarm",
-    "Your body is not recovered. Cave divers go in twice and the second "
-    "team surfaces early and will not say why.\n\n"
+    "Your body is not recovered. Cave divers go in twice. The second team "
+    "surfaces early and never says why.\n\n"
     "The dive line is still there. It is knotted to a rock thread at the "
     "near end. Nobody knows what it is knotted to at the far end, and "
     "there is no record of anyone ever having put it in."),
