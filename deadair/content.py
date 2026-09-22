@@ -635,11 +635,55 @@ ROOMS = {
         "to think about the other one."
     ),
     exits=[
-        Exit(label="Up, into the grey", to="adit", mins=9, hazard="climb_out",
+        Exit(label="Up, into the grey", to="choke", mins=9, hazard="climb_out",
              travel="You go first because you have the light and she goes "
                     "second because she has nothing left, and twice she "
                     "stops and twice she starts again without being asked. "
                     "You go up when the grey comes and not before."),
+    ],
+),
+
+# ----- the choke -------------------------------------------------------------
+# Only reached with the lens and without `bolted` — otherwise `climb_out`
+# resolves straight to RESCUE_HARD and this room never gets entered.
+
+"choke": Room(
+    id="choke", name="—", depth=-9, mx=5, my=9,
+    look=("", "", ""),
+    first=(
+        "Fifteen meters of broken rock at forty degrees, and something in "
+        "it with you.\n\n"
+        "You can hear it in the rock — not a voice or a call, the scrape "
+        "of scree taking its weight — and it is closing a distance the two "
+        "of you cannot close any faster.\n\n"
+        "Where the choke opens there is a hand's width of gray. Not "
+        "lamplight. The mountain's own, leaking in since time immemorial, "
+        "thin and cold, the color of nothing.\n\n"
+        "You take the lens out of your chest pocket. You have been "
+        "carrying it since a folding table at the top of a field and you "
+        "have never once known what it was for. Until now.\n\n"
+        "You hold it in the grey. The light goes through it and lands on "
+        "the dark behind Wren's shoulder as a point the size of a match "
+        "head. It lands on a pale hairless moving something. The point "
+        "flares white — almost hot — and for the first time in twenty-two "
+        "hours, the thing in the cave makes a sound that is unmistakably "
+        "its own.\n\n"
+        "It isn't a mouth-sound, and it doesn't land in your ears. It "
+        "lands behind your eyes in that instant, at the exact pitch of "
+        "the worst thing you have ever thought alone in the dark, and for "
+        "one second you know it heard you think it. It knows. It wants "
+        "more.\n\n"
+        "It comes apart from the light. Not away — apart."
+    ),
+    exits=[
+        Exit(label="Turn for the grey. Now.", to="resolved", mins=1,
+             hazard="rescue_now",
+             travel="You do not wait to see where apart goes."),
+        Exit(label="Hold the point on it. Watch.", to="resolved", mins=2,
+             hazard="rescue_watch",
+             travel="You keep the point where it is and make yourself "
+                    "watch, which is the harder of the two things you "
+                    "could be doing right now."),
     ],
 ),
 
@@ -652,6 +696,11 @@ ROOMS = {
 
 "stay": Room(
     id="stay", name="—", depth=-61, mx=3, my=8,
+    look=("", "", ""),
+),
+
+"resolved": Room(
+    id="resolved", name="—", depth=-9, mx=5, my=9,
     look=("", "", ""),
 ),
 }

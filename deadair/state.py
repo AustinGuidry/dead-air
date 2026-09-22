@@ -546,11 +546,17 @@ class Game:
         if h == "climb_out":
             # The mine head: the lens has a real source here — the knife of
             # grey the mountain leaks at dawn — but only if you still have it
-            # and did not panic your way out of the nest.
+            # and did not panic your way out of the nest. If so, the burn
+            # buys a choke and a choice instead of a foregone conclusion.
             if "lens" in self.flags and "bolted" not in self.flags:
-                self.ending = "RESCUE"
-            else:
-                self.ending = "RESCUE_HARD"
+                return []
+            self.ending = "RESCUE_HARD"
+            return []
+        if h == "rescue_now":
+            self.ending = "RESCUE_INJURED"
+            return []
+        if h == "rescue_watch":
+            self.ending = "RESCUE_CLEAN"
             return []
         return []
 
@@ -731,44 +737,73 @@ ENDINGS = {
 "OUT_ALONE": ("YOU CAME OUT", "sys",
     "You come out {arrival} with nothing.\n\n"
     "You are debriefed for two hours. You give the passages, the depths, "
-    "the rigging, the times — all of it clean, all of it professional, and "
-    "none of it explains why you turned around.\n\n"
-    "The search is called at day nine. Wren Alcott is a name on a board.\n\n"
+    "the rigging, the times — all of it clean and professional, and they "
+    "know but never ask why — none of it explains why you turned "
+    "around.\n\n"
+    "The search is called at day nine. Wren Alcott is now the third name "
+    "on board.\n\n"
     "You do not cave again. That is fine. What is not fine is that some "
     "nights, in a house with the lights on, you can hear the specific sound "
     "of a room the size of a cathedral, and you know exactly how far away "
-    "it is, and it is not far."),
+    "it is, and it's far closer than you ever wanted it to be to you "
+    "again."),
 
-"RESCUE": ("YOU BROUGHT HER OUT", "good",
-    "Fifteen meters of broken rock at forty degrees, and something in it "
-    "with you.\n\n"
-    "You can hear it in the rock — not a sound it makes, a sound the rock "
-    "makes having it against them — and it is closing a distance the two of "
-    "you cannot close any faster.\n\n"
-    "Where the choke opens there is a hand's width of grey. Not lamplight. "
-    "The mountain's own, leaking the way it has leaked for a hundred years, "
-    "thin and cold and the exact color of nothing.\n\n"
-    "You take the lens out of your chest pocket. You have been carrying it "
-    "since a folding table at the top of a field and you have never once "
-    "known what it was for.\n\n"
-    "You hold it in the grey. The light goes through it and lands on the "
-    "dark behind Wren's shoulder as a point the size of a match head, and "
-    "the point is white, and it is hot, and for the first time in "
-    "twenty-two hours the thing in the cave makes a sound that is "
-    "unmistakably its "
-    "own.\n\n"
-    "It comes apart from the light. Not away — apart. You keep the point on "
-    "it until she is past you and up and out into the open air, and then "
-    "you follow her, and behind you the grey goes back to being nothing.\n\n"
-    "They gate Wolf Sink in November. The paperwork says bat conservation. "
-    "The man who welds it does the whole rim, not just the entrance, and he "
-    "is not told why and does not ask.\n\n"
+"RESCUE_INJURED": ("YOU BROUGHT HER OUT", "good",
+    "You do not wait to see where the apart goes. You are already turning "
+    "for the grey, the lens still lit and throwing wild white across the "
+    "rock, when something closes the last of the distance on your blind "
+    "side.\n\n"
+    "It has your left hand for perhaps half a second. That is the whole of "
+    "it — a grip, and then, deliberately, a release, the way you would set "
+    "something down rather than have it taken from you. You are through "
+    "the choke on the other hand and both knees before you understand you "
+    "are hurt.\n\n"
+    "You get her up and out under the hemlocks with the sky going grey and "
+    "your glove filling with something that is not entirely blood, and you "
+    "do not look at it properly until Trammell is already cutting the "
+    "glove off.\n\n"
+    "Wolf Sink is gated. The paperwork says bat conservation. The man who "
+    "welds it does the whole rim, not just the entrance, and he is not "
+    "told why and does not ask.\n\n"
+    "The hand heals wrong. Two fingers do not fully close again, and the "
+    "surgeon writes nerve damage, consistent with a crush injury, and is "
+    "not exactly wrong.\n\n"
+    "Wren Alcott gives a statement that is never released. You give one "
+    "too. Yours is shorter, and you give it left-handed, and nobody in the "
+    "room asks why.\n\n"
+    "You go into a cave once more, years later — a show cave, handrails, a "
+    "guide — and you are fine until the guide kills the lights for effect. "
+    "Your hand finds the wall before you tell it to."),
+
+"RESCUE_CLEAN": ("YOU BROUGHT HER OUT", "good",
+    "You do not turn. You keep the point on it and make yourself watch, "
+    "which is the harder of the two things you could be doing right "
+    "now.\n\n"
+    "It runs on more joints than it has any right to, and none of them "
+    "bend the way the last one did, like it is relearning the shape every "
+    "time it moves. It is bigger than the nest made it look and smaller "
+    "than the dark made it sound, and for one full second, pinned by the "
+    "light, it holds still enough for you to be certain of both those "
+    "things and nothing else.\n\n"
+    "Then it stops trying to get past you and starts, instead, showing you "
+    "things — a room you have never stood in, a voice that is almost your "
+    "mother's, the specific fear you have never once said out loud to "
+    "another living person, pushed at you all at once, fast, the way you'd "
+    "empty your pockets onto a table. It is not asking. It is finding out "
+    "what works.\n\n"
+    "None of it works. You keep the point on it until she is past you and "
+    "up and out into the open air, and only then do you follow her, and "
+    "behind you the grey goes back to being nothing.\n\n"
+    "Wolf Sink is gated. The paperwork says bat conservation. The man who "
+    "welds it does the whole rim, not just the entrance, and he is not "
+    "told why and does not ask.\n\n"
     "Wren Alcott gives a statement that is never released. You give one "
     "too. Yours is shorter.\n\n"
     "You go into a cave once more, years later — a show cave, handrails, a "
-    "guide — and you are fine until the guide kills the lights for effect, "
-    "the way they do, and you are the only person on the tour who does not "
-    "laugh."),
+    "guide — and you are fine until the guide kills the lights for effect. "
+    "You are the only person on the tour who knows exactly what the dark "
+    "can do with half a second of eye contact, and you are still fine. "
+    "That is somehow the worst part."),
 
 "RESCUE_HARD": ("YOU BROUGHT HER OUT", "sys",
     "Fifteen meters of broken rock at forty degrees. You go up it. She goes "
