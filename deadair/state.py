@@ -269,9 +269,6 @@ class Game:
         if first and self.here in ("roost", "ladder"):
             self.cells += 1
             ev.append(("good", "SPARE CELL STOWED."))
-        if first and self.here == "deep":
-            self.flags.add("found")
-
         if first:
             # what you learned up top, arriving where it means something
             for flag, line in PAYOFFS.get(self.here, {}).items():
@@ -515,12 +512,12 @@ class Game:
                 ("sys",
                  "At 01:50 Trammell calls it. The surface is clear. "
                  "Whatever happened to Wren Alcott happened underground, "
-                 "and it happened nineteen hours ago, and there is one "
+                 "and it happened twenty-seven hours ago, and there is one "
                  "person on this ridge with a ticket to go and find out."),
                 ("sys",
                  f"Piney Ridge National Park.  "
                  f"{DESCENT_START // 60:02d}:{DESCENT_START % 60:02d}.  "
-                 f"Search and rescue callout, one subject, now thirty-two "
+                 f"Search and rescue callout, one subject, now twenty-seven "
                  f"hours overdue."),
             ]
         if h == "answer":
@@ -749,7 +746,7 @@ ENDINGS = {
     "again."),
 
 "RESCUE_INJURED": ("YOU BROUGHT HER OUT", "good",
-    "You do not wait to see where 'it' goes. You are already turning for "
+    "You do not wait to see where it goes. You are already turning for "
     "the grey, the lens still lit and throwing wild white across the rock, "
     "when something closes the last of the distance on your blind "
     "side.\n\n"

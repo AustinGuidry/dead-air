@@ -100,9 +100,9 @@ ROOMS = {
     ),
     first=(
         "Wren Alcott. Twenty-six. Solo, which is the whole problem. Her "
-        "car has been at the trailhead nineteen hours and her permit says "
-        "Wolf Sink, and Wolf Sink is a name that made three old timers at "
-        "the ranger station go quiet when you read it aloud.\n\n"
+        "car has been at the trailhead twenty-seven hours and her permit "
+        "says Wolf Sink, and Wolf Sink is a name that made three old "
+        "timers at the ranger station go quiet when you read it aloud.\n\n"
         "You do the checks the way you were taught, out loud, alone in the "
         "hemlocks. Primary lamp. Spare battery. Sixty meters of rope. "
         "Radio.\n\n"
@@ -624,6 +624,13 @@ ROOMS = {
         "color of nothing: grey. Not lamplight. Not yours."
     ),
     first=(
+        "You followed the air up. It had been moving across your face the "
+        "whole time you were in the nest, and you did not know until you "
+        "were moving that it was telling you where to go — the seam "
+        "behind the bone floor narrowing almost at once into a chimney, "
+        "tight and wet in patches, climbed with her weight added to yours "
+        "and every hold tested before you trust it, for what feels like "
+        "longer than the six minutes it actually takes.\n\n"
         "This is the second way to the surface. It has been here the whole "
         "time, and it is why the cave breathes, and the people who cut it "
         "walked out of it in 1911 and closed it behind them with forty tons "
@@ -659,9 +666,10 @@ ROOMS = {
         "Where the choke opens there is a hand's width of gray. Not "
         "lamplight. The mountain's own, leaking in since time immemorial, "
         "thin and cold, the color of nothing.\n\n"
-        "You take the lens out of your chest pocket. You have been "
-        "carrying it since a folding table at the top of a field and you "
-        "have never once known what it was for. Until now.\n\n"
+        "You take the lens out again. You have been carrying it since a "
+        "folding table at the top of a field, and minutes ago, back where "
+        "she was sleeping, it bought you nothing but a few feet of room. "
+        "In real light, it does more than that.\n\n"
         "You hold it in the grey. The light goes through it and lands on "
         "the dark behind Wren's shoulder as a point the size of a match "
         "head. It lands on a pale hairless moving something. The point "
@@ -676,13 +684,9 @@ ROOMS = {
     ),
     exits=[
         Exit(label="Turn for the grey. Now.", to="resolved", mins=1,
-             hazard="rescue_now",
-             travel="You do not wait to see where apart goes."),
+             hazard="rescue_now"),
         Exit(label="Hold the point on it. Watch.", to="resolved", mins=2,
-             hazard="rescue_watch",
-             travel="You keep the point where it is and make yourself "
-                    "watch, which is the harder of the two things you "
-                    "could be doing right now."),
+             hazard="rescue_watch"),
     ],
 ),
 
@@ -1418,6 +1422,12 @@ PAYOFFS = {
                   "running downhill in a straight line to a hole with no "
                   "sign on the junction. Somebody wanted this findable. "
                   "Somebody else, later, did not.",
+    "clue:here": "The last stone on the rise above Sander's Hollow faces "
+                 "the wrong way — away from the house, downhill, toward "
+                 "the sink. No name. A date, 1911, and the word HERE cut "
+                 "above it, in a hurry, by someone not thinking about who "
+                 "would read it.\n\nYou are standing on the ground it "
+                 "points at.",
 },
 
 "deep": {
@@ -1430,6 +1440,12 @@ PAYOFFS = {
                        "statement, and ten days later his wife of "
                        "twenty-something years told the county he was not "
                        "her husband and would not retract it.",
+    "clue:board": "Two names on a board outside a ranger station, and a "
+                  "third already measured out before you ever signed the "
+                  "trailhead register. You do the math kneeling here, in "
+                  "the dark, with somebody's helmet lamp still burning in "
+                  "your hands, and you do not like how easily the board "
+                  "could hold more than three.",
 },
 }
 
