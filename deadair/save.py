@@ -89,7 +89,7 @@ def describe(game):
         return (f"Act One · {game.room.name.lower()} · "
                 f"{game.wall_clock()} · {game.daylight:.0f}% light")
     bits = ["Act Two"]
-    if game.room.name != "—":   # two rooms down there do not have a name,
+    if game.room.name != "—":   # the deepest rooms do not have a name,
         bits.append(game.room.name.lower())   # and are not given one here
     bits += [f"{abs(game.depth)} m down", f"{game.clock()} elapsed",
              f"{game.lamp:.0f}% cell"]

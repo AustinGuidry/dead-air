@@ -612,6 +612,20 @@ SCENES = {
 "deep": Scene(kind="chamber", floor=-1.5, ceil=13.0, wall=15.0, far=34.0,
               rough=0.9, freq=0.24, bed=0.12, reach=15.0, fog=24.0, var=15.0),
 
+# ----- the rescue ----------------------------------------------------------
+# The nest's floor is worked smooth; the adit is cut, not dissolved, so it
+# runs straight and nearly clean; the choke is broken rock climbing at forty
+# degrees, so the camera looks up it.
+"nest": Scene(kind="chamber", floor=-1.5, ceil=5.0, wall=6.0, far=13.0,
+              rough=0.45, freq=0.30, bed=0.03, reach=10.0, fog=14.0,
+              var=17.0),
+"adit": Scene(kind="tube", rx=1.1, ry=1.3, bend=0.06, rough=0.16, bed=0.02,
+              freq=0.9, floor=-1.2, tilt=0.12, reach=9.0, fog=14.0, var=18.0),
+"choke": Scene(kind="tube", rx=1.3, ry=1.4, bend=0.22, rough=1.2, freq=0.6,
+               floor=None, tilt=0.42, reach=7.0, fog=10.0, var=19.0),
+"grip": Scene(kind="tube", rx=1.3, ry=1.4, bend=0.22, rough=1.2, freq=0.6,
+              floor=None, tilt=0.42, reach=7.0, fog=10.0, var=19.0),
+
 # ----- terminal ------------------------------------------------------------
 "drowned": Scene(kind="tube", rx=1.6, ry=1.6, bend=0.5, rough=0.5, freq=0.7,
                  floor=None, reach=2.6, fog=3.4, var=16.0),

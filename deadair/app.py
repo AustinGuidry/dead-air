@@ -11,7 +11,11 @@ from textual.widgets import Static
 
 from . import art, save, update
 from .content import ROOMS
-from .state import Game, ROPE_TOTAL, DAYLIGHT_TOTAL, PARK_START
+from .state import Game, ROPE_TOTAL, DAYLIGHT_TOTAL, PARK_START, PAGE
+
+# the endings you walk out of — the rest do not get an "out at" time
+SURVIVED = ("OUT_WITH", "OUT_ALONE", "RESCUE_HARD", "RESCUE_INJURED",
+            "RESCUE_CLEAN")
 
 STYLE = {
     "title": "bold #f0b46b",
@@ -25,9 +29,10 @@ STYLE = {
 
 BAR_FULL, BAR_EMPTY = "█", "─"
 
-# the cave proper — the park does not count toward a survey
+# the cave proper — the park, and the rooms an ending passes through, do not
+# count toward a survey
 CAVE_ROOMS = [r for r in ROOMS.values()
-              if "park" not in r.tags and r.id not in ("drowned", "stay")]
+              if not {"park", "offmap"} & r.tags]
 CAVE_IDS = {r.id for r in CAVE_ROOMS}
 
 # where the 1973 survey on the basecamp table actually reaches — it stops at
@@ -254,6 +259,7 @@ class DeadAir(App):
         self.seed = seed
         self.game = Game(seed)
         self._started = False   # until the menu says which run this is
+        self._pages = []        # ending pages still behind a Continue
         self._view_key = None
         self._can_draw = False
         self._update_notice = None   # "a newer one is out", set at mount
@@ -355,6 +361,7 @@ class DeadAir(App):
         self.settle()
         self.game = game
         self._started = True
+        self._pages = []
         self._view_key = None
         log = self.query_one("#narrative", VerticalScroll)
         for w in list(log.children):
@@ -665,7 +672,8 @@ class DeadAir(App):
         g = self.game
         if g.ending:
             self.query_one("#actions", Static).update(
-                "[#8d867c]  N  new run    Q  menu[/]")
+                " [bold #f0b46b]1[/]   Continue" if self._pages
+                else "[#8d867c]  N  new run    Q  menu[/]")
             return
         rows = []
         for i, (kind, label, ok, why, _) in enumerate(g.choices()):
@@ -700,21 +708,38 @@ class DeadAir(App):
         self.refresh_panels()
 
     def show_ending(self):
+        head, kind, body = self.game.ending_body()
+        first, *self._pages = [(kind, p) for p in body.split(PAGE)]
+        self.emit([("title", head), first])
+        if not self._pages:
+            self.close_ending()
+
+    def next_page(self):
+        self.emit([self._pages.pop(0)])
+        if not self._pages:
+            self.close_ending()
+        self.refresh_panels()
+
+    def close_ending(self):
         g = self.game
-        head, kind, body = g.ending_body()
         deepest = min((ROOMS[r].depth for r in g.visited & CAVE_IDS),
                       default=0)
-        ev = [("title", head), (kind, body)]
+        ev = []
         note = g.ending_note()
         if note:
             ev.append(("alarm", note))
-        ev.append(("sys", f"Out at {g.surface_clock()}.  Elapsed {g.clock()}. "
-                          f" Deepest point {deepest} m.  "
+        out = (f"Out at {g.surface_clock()}.  " if g.ending in SURVIVED
+               else "")
+        ev.append(("sys", f"{out}Elapsed {g.clock()}.  "
+                          f"Deepest point {deepest} m.  "
                           f"{self.surveyed()} passages surveyed."))
         ev.append(("sys", "N for a new run.  Q for the menu."))
         self.emit(ev)
 
     def action_choose(self, idx: int):
+        if self.playing() and self.game.ending and self._pages and idx == 0:
+            self.next_page()
+            return
         if not self.playing() or self.game.ending:
             return
         self.after(self.game.act(idx))
