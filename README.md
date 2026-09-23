@@ -8,9 +8,10 @@ It opens above ground. You have one evening of light to walk the approach,
 read the ground, and talk to the people who saw Wren Alcott last — and then
 you go down the hole.
 
-Every room draws itself. The scenes are raymarched at runtime and lit by your
-actual lamp, so the picture loses reach and detail as the cell dies, for the
-same reason the prose does.
+Every room draws itself — there are no image files. Each scene is calculated
+live, as if a camera really were standing in the cave, and lit by your actual
+lamp, so the picture loses reach and detail as the cell dies, for the same
+reason the prose does.
 
 Built with [Textual](https://textual.textualize.io/), so it runs anywhere
 Python 3.12 does — Linux, macOS and Windows, in a local terminal, over SSH,
