@@ -286,11 +286,8 @@ class Game:
         return ev
 
     def _ambience(self):
-        if self.phase == "park":
-            if self.rng.random() < 0.42:
-                return [("sound", self._pick_sound(PARK_AMBIENCE))]
-            return []
-        if "quiet" in self.room.tags:
+        # Above ground the ridge only makes noise when you stop and listen.
+        if self.phase == "park" or "quiet" in self.room.tags:
             return []
         chance = (0.30, 0.45, 0.70)[self.dread]
         if self.rng.random() < chance:
