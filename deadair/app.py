@@ -172,13 +172,13 @@ class Menu(Screen):
             rows.append(line)
         with Vertical(id="card"):
             yield Static("\n".join(TITLE_ART), id="art")
-            yield Static("Piney Ridge National Park.  One subject, "
-                         "nineteen hours overdue.", id="blurb")
+            yield Static("Piney Ridge National Park.\n"
+                         "One subject, nineteen hours overdue.", id="blurb")
             notice = getattr(self.app, "_update_notice", None)
             if notice:
                 yield Static(f"[#8fc98f]{notice}[/]", id="update")
             yield Static("\n\n".join(rows), id="items")
-            yield Static("a number to choose", id="foot")
+            yield Static("Press a number to proceed.", id="foot")
 
     def action_pick(self, idx: int):
         if not self.app.accepting_input():
