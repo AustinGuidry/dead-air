@@ -64,7 +64,7 @@ jobs:
               for i, (k, l, ok, why, o) in enumerate(g.choices()):
                   if want.lower() in l.lower() and ok:
                       return i
-          for w in ["trail up the ridge", "Straight on toward"]:
+          for w in ["trail up the ridge", "follow the flagging to the sink"]:
               g.act(pick(w))
           for w in ["Trammell", "Rosalind"]:
               i = pick(w)
