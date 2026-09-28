@@ -100,8 +100,8 @@ watch it (`RESCUE_CLEAN` — uninjured, but you stay long enough to see its
 shape and feel it reach for more than your position, so you carry the worse
 memory instead). Both of those gate the sink and fill in the old workings.
 All three of `RESCUE_HARD`/`RESCUE_INJURED`/`RESCUE_CLEAN` are keyed to dawn,
-not the clock — they come out into the gray, or into full morning
-(`DAWN_SKY`) if you took long enough to get there. `climb_out` makes you wait
+not the clock — they come out into the gray, at sunrise, or into full
+morning (`DAWN_SKY`) if you took long enough to get there. `climb_out` makes you wait
 at the foot of the choke until `DAWN` (05:35), with the beam stopped down,
 before the climb is told. The wait can drain the battery but never kill it, and
 the pursuit clock does not run through it. A fast run otherwise reaches the
@@ -110,8 +110,15 @@ light. The nest's third exit, back into the seam alone, drops you back at
 `deep`. Taking the helmet closes the way to the nest — you are running by
 then, and the thing in it is awake — and opens a way back along the
 footprints instead. Up in the gray (`choke`, `grip`) a dead lamp is not a
-death; a lamp that dies anywhere after the nest ends in a `DARK` that knows
+death, and neither is one that runs out on the last crawl out of the
+Letterbox — the work lights at the sink beat it (`Game.lit_without_lamp`);
+a lamp that dies anywhere after the nest ends in a `DARK` that knows
 Wren was with you.
+
+The Letterbox is the one crawl you cannot turn around in, so its exits
+depend on which end you came in by (`Exit.came_from`): from the sink you
+push on or reverse out; from the Bell you crawl out head-first or reverse
+back.
 
 **Graphics that carry the mechanic.** Every room has a viewport above the
 prose, and it is not decoration. Scenes are described as signed-distance

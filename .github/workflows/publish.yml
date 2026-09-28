@@ -74,7 +74,7 @@ jobs:
           g.act(pick("Rig in"))
           assert g.phase == "cave" and g.here == "sink", g.here
           for w in ["Go in feet-first", "Push on through", "Back into the Letterbox",
-                    "Reverse out to the sink"]:
+                    "Crawl out to the sink"]:
               g.act(pick(w))
           assert g.ending == "OUT_ALONE", g.ending
           g.ending_body(); g.ending_note()

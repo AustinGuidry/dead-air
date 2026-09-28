@@ -28,11 +28,15 @@ Needs Python 3.12 or newer. [pipx](https://pipx.pypa.io) is the tidiest way —
 it keeps the game and its dependencies in their own environment and puts
 `deadair` on your PATH:
 
-    pipx install git+https://github.com/AustinGuidry/dead-air
+    pipx install deadair
 
 Or with plain pip, ideally into a virtualenv:
 
-    pip install git+https://github.com/AustinGuidry/dead-air
+    pip install deadair
+
+Either one also takes `git+https://github.com/AustinGuidry/dead-air` in
+place of `deadair` if you want whatever is on GitHub right now rather than
+the latest release.
 
 Then, from anywhere:
 
@@ -95,8 +99,8 @@ Support/deadair/save.json`, on Windows `%LOCALAPPDATA%\deadair\save.json`.
 Setting `XDG_STATE_HOME` overrides all three. Deleting the file is a supported
 way to start over.
 
-Take your time in the first few rooms. The cave teaches you what it wants
-before it asks you for anything.
+Take your time on the ridge. It teaches you what the cave will want before
+the cave asks you for anything.
 
 You cannot see everything in the park before the light goes, and that is the
 point of the park.
