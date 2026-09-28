@@ -3,7 +3,7 @@ DEAD AIR — procedural scene art.
 
 Every frame is raymarched from a signed-distance description of the place you
 are standing in, then lit by your actual lamp. Nothing here is a picture file:
-the beam is a light in the scene, so when the cell dies the image loses reach
+the beam is a light in the scene, so when the battery dies the image loses reach
 and detail for the same reason the prose does.
 
 Pure rendering. It knows about rooms only through SCENES, which is data.

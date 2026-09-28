@@ -1,5 +1,5 @@
 """
-DEAD AIR — cave, prose, and flavour tables.
+DEAD AIR — cave, prose, and flavor tables.
 
 Pure data. No mechanics live here, so the writing can be edited without
 touching the engine.
@@ -8,7 +8,7 @@ Room.look is layered by how far the lamp reaches:
     look[0]  arm's length   — always shown
     look[1]  the room       — needs a working lamp
     look[2]  beyond         — needs a strong lamp
-As the cell dies you literally stop being told what is there.
+As the battery dies you literally stop being told what is there.
 """
 
 from dataclasses import dataclass, field
@@ -24,8 +24,10 @@ class Exit:
     need: str = ""              # flag required in state.flags
     deny: str = ""              # shown when `need` is missing
     once: str = ""              # extra prose, first traverse only
+    once_after: str = ""        # the same, but after `travel` rather than before
     hazard: str = ""            # engine hook: 'collapse', 'dive', 'commit'
     unless: str = ""            # hidden once this flag is set
+    when: str = ""              # hidden until this flag is set
 
 
 @dataclass
@@ -68,7 +70,11 @@ class Room:
     look: tuple                 # (near, room, beyond)
     exits: list = field(default_factory=list)
     first: str = ""             # first visit only
-    tags: set = field(default_factory=set)   # badair, water, signal, roof
+    found: str = ""             # first visit only, when the beam cannot reach
+                                # look[2]: the one thing `first` needs you to
+                                # have seen, found by walking up to it
+    tags: set = field(default_factory=set)   # badair, water, signal, roof,
+                                             # quiet, gray (lit by the dawn)
     mx: int = 0                 # sidebar map grid
     my: int = 0
     people: list = field(default_factory=list)   # Act One only
@@ -85,26 +91,25 @@ ROOMS = {
 
 "sink": Room(
     id="sink", name="Wolf Sink", depth=0, mx=3, my=0,
-    tags={"signal", "surface"},
+    tags={"signal", "surface", "quiet"},
     look=(
         "The sink is a wound in the hillside. Limestone and root, collapsed "
-        "in on itself under a stand of hemlock, forty minutes off the Piney "
+        "in on itself under a stand of hemlock, ten minutes off the Piney "
         "Ridge trail and not on any of the park's public maps.",
         "You stand at its edge looking down. Cold air pours out of it "
         "steadily enough to move the ferns at the lip. September. The cave is "
-        "breathing in, which means it is deep, and it means somewhere far "
+        "breathing out, which means it is deep, and it means somewhere far "
         "under you there is at least one more way to the surface that nobody "
         "has found.",
         "Behind you the work lights make a hard white room out of forty feet "
         "of the trees followed by nothing at all for the rest of the ridge. "
         "Your shadow goes down into the hole ahead of you and does not come "
-        "back out. You turn back to the people waiting."
+        "back out."
     ),
     first=(
-        "Wren Alcott has been under this hill for forty-four hours. "
-        "Twenty-seven of them overdue.\n\n"
+        "Wren Alcott has been under this hill for forty-four hours.\n\n"
         "You do the checks the way you were taught, out loud, alone in the "
-        "hemlocks. Primary lamp. Fresh cell. Sixty meters of rope. "
+        "hemlocks. Primary lamp. Fresh battery. Sixty meters of rope. "
         "Radio.\n\n"
         "Then you sit on the lip and put your legs into the cold."
     ),
@@ -122,9 +127,9 @@ ROOMS = {
         "Forty meters of flat-out crawl, and nowhere in it can you lift your "
         "head. You go on your side with the pack pushed ahead, breathing "
         "against rock that is two inches from your face.",
-        "There are drag marks in the silt. One set going in. You put your "
-        "own hand beside one of them for scale and it is a smaller hand "
-        "than yours.",
+        "There are drag marks in the silt, one set going in, and a handprint "
+        "between them. You put your own hand beside it for scale and it is a "
+        "smaller hand than yours.",
         ""
     ),
     first=(
@@ -148,8 +153,7 @@ ROOMS = {
     id="bell", name="Bell Chamber", depth=-9, mx=3, my=2,
     tags={"signal"},
     look=(
-        "You can stand. After the Letterbox, that feels like a gift, and you "
-        "take a minute to give your ribs back to yourself.",
+        "You can stand.",
         "A bell-shaped void, six meters across, floored in cobble. Three ways "
         "to choose from. Someone has left a cairn of four stones by the "
         "western passage — recent, the top stone still pale where it was "
@@ -159,6 +163,8 @@ ROOMS = {
         "drop at a time, and lands somewhere you can hear but not see."
     ),
     first=(
+        "After the Letterbox, standing up feels like a gift, and you take a "
+        "minute to give your ribs back to yourself.\n\n"
         "You call it in. Basecamp comes back thin but readable: they have "
         "you at the Bell, they have your time, they will hold the frequency."
         "\n\nThis is the last place in the cave where that is true."
@@ -168,7 +174,7 @@ ROOMS = {
              travel="You take the western way, past the cairn, and within "
                     "twenty meters you can hear water working."),
         Exit(label="East — the dry gallery", to="gallery", mins=6,
-             travel="East. The floor comes up and the air goes dry and the "
+             travel="East. The floor goes to dust and the air goes dry and the "
                     "sound of your boots changes register."),
         Exit(label="Back into the Letterbox", to="letterbox", mins=2,
              travel="You get back down on your side and feed yourself into "
@@ -184,7 +190,7 @@ ROOMS = {
         "ninety seconds and settles in for the duration.",
         "A canyon passage, taller than it is wide, cut by this same water "
         "over a timescale nobody can wrap their heads around. Scallops in the "
-        "wall all point the way the flow goes. Downstream is north-west. "
+        "wall all point the way the flow goes. Downstream is southwest. "
         "Downstream is always the answer if you are lost, and as an "
         "experienced caver, Wren knew that.",
         "There is a flood line on the wall at chest height. Old debris packed "
@@ -217,6 +223,10 @@ ROOMS = {
         "thread, going into the water and down. It is not park equipment, nor "
         "is it new. Nobody at basecamp mentioned a dive line."
     ),
+    found=(
+        "Your boot finds a line before your light does: blue polypropylene, "
+        "knotted to a rock thread at the edge, going into the water and down."
+    ),
     first=(
         "You crouch at the edge and put your hand in to the wrist and hold "
         "it there until it hurts, because knowing the temperature matters "
@@ -234,15 +244,18 @@ ROOMS = {
 
 "gallery": Room(
     id="gallery", name="Dry Gallery", depth=-13, mx=5, my=2,
-    tags={"signal"},
     look=(
         "Dust. This means no water has come through here in a very long time.",
         "Survey stations, old ones — aluminum tags hammered into the wall, "
-        "stamped WS-11, WS-12. Someone mapped this. Then the file went "
-        "straight into a drawer.",
+        "stamped WS-11, WS-12. Someone surveyed this. None of it made it "
+        "into the file.",
         "Orange flagging tape on a projection at the far end, tied in a "
         "bowline. Fresh. Wren's color. It marks the way on, and the way on "
         "is a hole in the floor."
+    ),
+    found=(
+        "Right at the edge of your beam, down at the far end, a scrap of "
+        "orange: flagging tape, Wren's color, marking a hole in the floor."
     ),
     exits=[
         Exit(label="On to the flagged hole", to="pitch_head", mins=5,
@@ -291,9 +304,8 @@ ROOMS = {
 "pitch_bottom": Room(
     id="pitch_bottom", name="Foot of the Drop", depth=-28, mx=5, my=4,
     look=(
-        "You come off the rope onto a floor of shattered plate. The rope "
-        "hangs behind you, rigged. It's the only way you can get out of here. "
-        "You touch it once before you leave it.",
+        "A floor of shattered plate, and the rope hanging down onto it, "
+        "rigged. It's the only way you can get out of here.",
         "Bigger down here. The chamber runs off in two directions and the air "
         "moves through it, which is good — air movement is life — except that "
         "it is moving toward you from both directions at once — which is not "
@@ -302,6 +314,8 @@ ROOMS = {
         "most people stand under in a lifetime."
     ),
     first=(
+        "You come off the rope, and you touch it once before you leave "
+        "it.\n\n"
         "You mark the pitch foot with a reflective tag at knee height, "
         "because at the end of this you will be tired and the way out will "
         "look like every other hole in the wall."
@@ -336,8 +350,8 @@ ROOMS = {
              hazard="collapse",
              travel="You take it slow, three points of contact, weight "
                     "committed only after the block has been asked twice."),
-        Exit(label="A crawl going north", to="roost", mins=5,
-             travel="A crawl, north, and the smell changes."),
+        Exit(label="A crawl going west", to="roost", mins=5,
+             travel="A crawl, west, and the smell changes."),
         Exit(label="Back east to the pitch", to="pitch_bottom", mins=7,
              travel="Back east across the blocks."),
     ],
@@ -352,8 +366,8 @@ ROOMS = {
         "would have made this room roar every dusk from April to October.",
         "The ceiling is empty. Not white-nose empty, not sick-and-dying empty "
         "— empty like it was swept. No bats. No bodies. No mites. Nothing has "
-        "been in this room for a long time, and no traces of anything besides "
-        "the guano tells you something else made sure of that."
+        "been in this room for a long time, and that there is no trace of "
+        "anything but the guano tells you something else made sure of that."
     ),
     first=(
         "You stand in the middle of it with your light up and you count to "
@@ -387,8 +401,8 @@ ROOMS = {
         Exit(label="Push west, fast", to="pack", mins=5,
              travel="You go, and you go fast and low, and the headache "
                     "comes with you for a while after the air improves."),
-        Exit(label="Reverse out to the pitch foot", to="pitch_bottom", mins=6,
-             travel="You reverse out, and the moment the air thins you sit "
+        Exit(label="North to the pitch foot", to="pitch_bottom", mins=6,
+             travel="You get yourself out of it, and the moment the air thins you sit "
                     "down hard and breathe like something landed."),
     ],
 ),
@@ -402,7 +416,7 @@ ROOMS = {
         "closed and upright. Nobody drops a pack this neatly in an "
         "emergency; you set a pack down like this when you intend to come "
         "straight back to it.",
-        "Inside: dry bag, food for two days untouched, a first-aid kit "
+        "Inside: dry bag, food for the day untouched, a first-aid kit "
         "unopened, and a handheld radio with the volume wheel turned "
         "all the way up."
     ),
@@ -418,10 +432,10 @@ ROOMS = {
         Exit(label="On, to a slot in the far wall", to="squeeze", mins=6,
              travel="There is a slot in the far wall, and there is fresh "
                     "scuffing on the lip of it at hip height."),
-        Exit(label="Back east into the breakdown", to="breakdown", mins=11,
-             travel="Back east over the blocks."),
-        Exit(label="Back north into the sallow air", to="badair", mins=5,
-             travel="You take a breath in good air, and go back into the "
+        Exit(label="North into the breakdown", to="breakdown", mins=11,
+             travel="North, over the blocks."),
+        Exit(label="East into the sallow air", to="badair", mins=5,
+             travel="You take a breath in good air, and go into the "
                     "bad on purpose, which everything in you objects to."),
     ],
 ),
@@ -432,8 +446,8 @@ ROOMS = {
         "A vertical slot, hip-wide at the bottom and shoulder-wide at the "
         "top, and the only way through it is on your side with your arms "
         "over your head and nothing on your back.",
-        "You will have to take off your pack and push it through ahead of "
-        "you. Everything you own will be on the far side of a hole you may "
+        "It is too tight for a pack. What goes through goes in your "
+        "pockets, and everything else stays on this side of a hole you may "
         "not be able to reverse quickly.",
         "Air moves through it hard enough to whistle."
     ),
@@ -447,21 +461,25 @@ ROOMS = {
     exits=[
         Exit(label="Strip the pack and go through", to="long_room", mins=12,
              hazard="commit",
-             once="Halfway through, wedged, with the rock on your sternum "
+             once="You set the pack down against the wall, closed and "
+                  "upright, the way you set a pack down when you intend to "
+                  "come straight back to it.",
+             once_after="Halfway through, wedged, with the rock on your sternum "
                   "and on your spine at the same time, you exhale all the "
                   "way to make yourself smaller, and for four seconds you "
                   "cannot get the breath back.",
              travel="You go through sideways, in stages, in the dark, with "
                     "your lamp in your teeth."),
         Exit(label="Back to the cache", to="pack", mins=6,
-             travel="You reverse the Keyhole. It is worse in this direction."),
+             travel="You go back to the cache, and the slot whistles behind "
+                    "you."),
     ],
 ),
 
 "long_room": Room(
     id="long_room", name="The Long Room", depth=-52, mx=3, my=7,
     look=(
-        "You come out of the Keyhole into space. You can feel it before you "
+        "Space. You can feel it before you "
         "see it — the sound of your own breathing goes away from you and "
         "does not come back for a full second.",
         "Your beam does not reach the far wall. It does not reach the "
@@ -472,6 +490,10 @@ ROOMS = {
         "across it, going away from you into the dark, is a single line of "
         "footprints in the silt, and they are not going toward anything "
         "you can see."
+    ),
+    found=(
+        "In the silt at your feet, a single line of footprints goes away from "
+        "you into the dark."
     ),
     first=(
         "You shout Wren's name because that is the protocol.\n\n"
@@ -491,7 +513,8 @@ ROOMS = {
                     "which is what you do in a room you cannot see the "
                     "shape of."),
         Exit(label="Back to the Keyhole", to="squeeze", mins=12,
-             travel="You go back to the slot in the wall."),
+             travel="You go back through the slot in the wall. Your pack is "
+                    "where you left it."),
     ],
 ),
 
@@ -518,7 +541,7 @@ ROOMS = {
     ),
     exits=[
         Exit(label="Back into the Long Room", to="long_room", mins=9,
-             travel="Back along the wall, left hand trailing, west."),
+             travel="Back along the wall, right hand trailing, west."),
     ],
 ),
 
@@ -542,6 +565,11 @@ ROOMS = {
         "Wren Alcott's oversuit, with a round dent in the top of it where "
         "her helmet sat until you took it."
     )},
+    found=(
+        "Out at the end of them, past where your beam reaches, something is "
+        "giving off its own light. It is Wren Alcott's helmet lamp, still on, "
+        "sitting on top of her oversuit, which is folded neatly on the silt."
+    ),
     first=(
         "You are sixty-one meters down.\n\n"
         "You kneel by the suit. It is dry. It has been dry for a long time "
@@ -561,10 +589,15 @@ ROOMS = {
              travel="You take the helmet. You do not turn your back on the "
                     "dark to do it — you back away with your light up, all "
                     "the way, until the wall finds your shoulder."),
+        Exit(label="Back along the footprints", to="long_room", mins=15,
+             when="took_find",
+             travel="You go back along the footprints. Yours are over hers "
+                    "now, the whole way."),
         Exit(label="Answer it", to="stay", mins=1, hazard="answer",
              travel="You turn around, and you put your light on it, and "
                     "you say: \"I'm here.\""),
         Exit(label="Go the way the suit was facing", to="nest", mins=12,
+             unless="took_find",
              travel="The suit is folded, and the folded suit seems to point "
                     "somewhere. The collar is turned toward a low seam in "
                     "the west wall that you had taken for shadow, and the "
@@ -573,7 +606,7 @@ ROOMS = {
                     "front of your face, and for the next few minutes, the "
                     "only thing you can think about is that this is how she "
                     "went, and that she went without her suit.",
-             once="You are not following procedure any more. You know that. "
+             once_after="You are not following procedure anymore. You know that. "
                   "You log the time out of habit... the habit is the only "
                   "part of you still behaving like a rescue."),
     ],
@@ -587,18 +620,24 @@ ROOMS = {
         "Bone. Not a pile — a floor. Worked flat and worked smooth and gone "
         "the color of old soap. Clearly not new.",
         "The chamber is warm. Sixty-six meters down in a cave that runs at "
-        "eleven degrees, and it is warm, and the air moves across your face "
-        "from somewhere ahead and to the left, going up.",
+        "fifty-two degrees, and it is warm, and the air moves across your face "
+        "from somewhere ahead and to the left, coming down.",
         "And on the far side of it, forty feet off, sitting upright against "
         "the wall with her knees drawn up, is Wren Alcott. Her eyes are "
         "open. She has been looking at the seam you came out of since "
         "before your light reached it."
     ),
+    found=(
+        "Across the chamber, at the very edge of what your beam can do, "
+        "somebody is sitting upright against the wall with her knees drawn "
+        "up. Wren Alcott. Her eyes are open."
+    ),
     first=(
         "She says your name.\n\n"
-        "Not the way the dark said it. She reads it off the tape on your "
-        "chest, the way a person does, squinting, and she gets it slightly "
-        "wrong, and that small wrongness is the first thing in twenty-two "
+        "Not the way the dark said it. She has only ever heard it in the "
+        "dark's voice, through the rock, and she says it back the way a "
+        "person does, carefully, and she gets it slightly wrong, and that "
+        "small wrongness is the first thing in twenty-two "
         "hours that has been unambiguously good.\n\n"
         "\"Don't put the light on it,\" she says. \"Not yet. It's been "
         "asleep about an hour and I've been counting.\"\n\n"
@@ -609,7 +648,7 @@ ROOMS = {
     exits=[
         Exit(label="Put the lamp through the lens", to="adit", mins=25,
              need="lens", deny="you have nothing to do it with",
-             hazard="burn"),
+             when="clue:lens", hazard="burn"),
         Exit(label="Take her and run for it", to="adit", mins=25,
              hazard="unarmed",
              travel="You cross the floor and get a hand under her arm and "
@@ -622,16 +661,15 @@ ROOMS = {
 
 "adit": Room(
     id="adit", name="The Old Workings", depth=-18, mx=4, my=9,
-    tags={"signal"},
     look=(
         "Cut timber. Square-set, adzed, propped by somebody who meant it to "
         "hold and who has been dead for a hundred years.",
-        "An adit, driven by hand into the hill and abandoned before it "
+        "A mine tunnel, driven by hand into the hill and abandoned before it "
         "found anything. There is a rail, and a hand-drill scar every "
         "eighteen inches, and the black feathered smoke of carbide lamps on "
         "the back of every set.",
         "And at the top of it, past the choke, cold air coming in off the "
-        "hill. When the gray comes, it will come from there — thin as a "
+        "hill. The gray comes from there, when it comes — thin as a "
         "blade and the color of nothing. Not lamplight. Not yours."
     ),
     first=(
@@ -656,8 +694,7 @@ ROOMS = {
         Exit(label="Up, into the gray", to="choke", mins=9, hazard="climb_out",
              travel="You go first because you have the light and she goes "
                     "second because she has nothing left, and twice she "
-                    "stops and twice she starts again without being asked. "
-                    "You go up when the gray comes and not before."),
+                    "stops and twice she starts again without being asked."),
     ],
 ),
 
@@ -666,7 +703,7 @@ ROOMS = {
 # resolves straight to RESCUE_HARD and this room never gets entered.
 
 "choke": Room(
-    id="choke", name="—", depth=-9, mx=5, my=9, tags={"quiet"},
+    id="choke", name="—", depth=-9, mx=5, my=9, tags={"quiet", "gray"},
     look=("", "", ""),
     first=(
         "Fifteen meters of broken rock at forty degrees, and something in "
@@ -675,15 +712,15 @@ ROOMS = {
         "of scree taking its weight — and it is closing a distance the two "
         "of you cannot close any faster.\n\n"
         "Where the choke opens there is a hand's width of gray. Not "
-        "lamplight. The mountain's own, leaking in since time immemorial, "
+        "lamplight. The mountain's own, leaking in for a hundred years, "
         "thin and cold, the color of nothing.\n\n"
         "You take the lens out again. You have been carrying it since a "
-        "folding table at the top of a field, and not long ago, back where "
+        "folding table under the work lights, and not long ago, back where "
         "it was sleeping, it bought you nothing but a few feet of room. "
         "In real light, it does more than that.\n\n"
         "You hold it in the gray. The light goes through it and lands on "
         "the dark behind Wren's shoulder as a point the size of a match "
-        "head. It lands on a pale hairless moving something. The point "
+        "head. It lands on something pale that moves. The point "
         "flares white — almost hot — and for the first time, the thing in "
         "the cave makes a sound that is unmistakably its own.\n\n"
         "It isn't a mouth-sound, and it doesn't land in your ears. It "
@@ -706,19 +743,20 @@ ROOMS = {
 # forced action before the epilogue. Quiet — no ambience rolls here.
 
 "grip": Room(
-    id="grip", name="—", depth=-9, mx=5, my=9, tags={"quiet", "offmap"},
+    id="grip", name="—", depth=-9, mx=5, my=9,
+    tags={"quiet", "offmap", "gray"},
     look=("", "", ""),
     first=(
         "You do not wait to see where it goes. You are already turning for "
-        "the gray, the lens still lit and throwing wild white across the "
+        "the gray, the lens still full of it and throwing wild white across the "
         "rock, when something closes the last of the distance on your blind "
         "side.\n\n"
         "It has your left hand for perhaps half a second. That is the whole "
         "of it — a grip, and then, deliberately, a release, the way you "
-        "would set something down. Except the hand does not let go clean. "
+        "would set something down. Except it does not let go clean. "
         "Something leaves with it that never shows up on your glove — small, "
         "and cold, and it does not stay in your hand. You are through the "
-        "choke on the other hand and both knees before you understand you "
+        "choke on your good hand and both knees before you understand you "
         "are hurt, and hurt turns out to be the wrong word for one of the "
         "two things that just happened to you. It will be years before you "
         "find a better word for it."
@@ -802,6 +840,11 @@ ECHO_ACTS = {
     "deep": "someone kneeling down in silt",
 }
 
+# When you LISTEN and get nothing. Nothing the cave says comes twice, and
+# sometimes it says nothing at all.
+LISTEN_QUIET = ("You hold your breath and listen, and the cave gives you "
+                "nothing back.")
+
 
 # --------------------------------------------------------------------------
 #  RADIO — basecamp, by depth. Degrades. Then it doesn't degrade correctly.
@@ -822,7 +865,7 @@ RADIO = {
         "BASECAMP: ...old the frequency. We're not going... —where. Say "
         "again when you c...",
         "BASECAMP: ...ing you every fifteen. If we lose you for an hour "
-        "we're com... ...you hear that? Acknow—",
+        "we're call... ...you hear that? Acknow—",
     ],
     "gone": [
         "Carrier hiss. Under it, at the edge of hearing, a rhythm that is "
@@ -839,7 +882,20 @@ RADIO = {
         "Bell Chamber. Word for word. Including the part where you cleared "
         "your throat.",
     ],
+    # Act One: you are on the ridge and basecamp is up at the sink
+    "park": [
+        "BASECAMP: Copy your position. We're set up at the sink, generator's "
+        "running. We'll see you when we see you.",
+        "BASECAMP: Copy. We have you. Talk to whoever you need to talk to on "
+        "the way — we're not going anywhere.",
+        "BASECAMP: Copy, copy. Family's up here with us. Just so you know "
+        "that before you walk in.",
+    ],
 }
+
+# Act One, keying the set while you are standing at basecamp
+RADIO_AT_BASECAMP = ("Basecamp is the folding table in front of you. You put "
+                     "the set away.")
 
 
 # --------------------------------------------------------------------------
@@ -856,7 +912,7 @@ PARK = {
     id="trailhead", name="Piney Ridge Trailhead", depth=0, mx=0, my=0,
     tags={"surface", "park", "signal"},
     look=(
-        "You arrive at the pull-off. There's room for six vehicles, four "
+        "The pull-off has room for six vehicles, four "
         "already here. The day's nearly at an end, and the air smells like "
         "hot brake dust and somebody's coffee going cold on a tailgate.",
         "A silver Subaru hatchback sits at the far end under the mix of pine, "
@@ -871,12 +927,12 @@ PARK = {
     first=(
         "Wren Alcott. Twenty-six. Solo... which is the whole problem.\n\n"
         "Nineteen hours overdue on a permit that says Wolf Sink, and Wolf "
-        "Sink is a name that made three old timers at the ranger station go "
+        "Sink is a name that made three old-timers at the ranger station go "
         "quiet when you read it aloud.\n\n"
         "You have until dark to walk the approach without burning your "
         "headlamp's battery and talk to whoever saw her last. You know that "
         "you essentially only have a few hours until this stops being a "
-        "search and starts being a callout and possible recovery. Time to go."
+        "rescue and starts being a recovery. Time to go."
     ),
     people=[
         Person("Ranger Dolan Pace", "park law enforcement", [
@@ -889,8 +945,8 @@ PARK = {
             ("\"Weird thing is how she even knew about it. Wolf Sink is a "
              "pretty deep cut, so to speak. It isn't on the public map... "
              "you'd only find it if you were looking at the actual physical "
-             "survey of this place — or you just stumble across it. There's "
-             "11 pages on it from the '73 survey sitting in a drawer in "
+             "survey of this place — or some local walked you down the old path. "
+             "There's eleven pages on it from the '73 survey sitting in a drawer in "
              "Blakely and that's the only file on it. Only reason I can even "
              "stamp a permit for it at all is there's a standing clearance "
              "from the district's cave specialist — some list of names of "
@@ -906,7 +962,7 @@ PARK = {
              "thing you have already decided not to have an opinion about. "
              "\"The Missing Persons board outside the station already has two "
              "names on it, and they asked me to take it down so people don't "
-             "potentially see us adding a third. Let's go up and take the "
+             "potentially see us adding a third. I haven't. You'll want to take the "
              "witness's statement — what do you think — car, witness, or "
              "straight up to the sink?\"",
              "clue:board"),
@@ -916,7 +972,7 @@ PARK = {
         Clue("The silver hatchback", 3,
              "Unlocked. Junie — Wren's partner — has had a key to this car "
              "for seven years, and according to the call you got before you "
-             "showed up, she was standing here at 4:00am, hours before she "
+             "showed up, she was standing here at 04:00, hours before she "
              "called anyone and anybody thought to call you.\n\n"
              "Inside: a change of clothes folded on the passenger seat, a "
              "receipt from a gas station in Blakely timestamped 05:41 "
@@ -936,14 +992,15 @@ PARK = {
              "Wren's is on top, yesterday, 06:10, WOLF SINK printed in small "
              "square capital letters.\n\n"
              "Three weeks back, in the same hand, the same box. Then six "
-             "weeks back, and eleven. And in March... and March again. Nine entries for "
+             "weeks back, and eleven, and fourteen. May. April. And March... "
+             "and March again. Nine entries for "
              "Wolf Sink in seven months and every one of them solo. None with "
              "a logged exit time.",
              "clue:register"),
     ],
     exits=[
         Exit(label="Take the trail up the ridge", to="ridge_trail", mins=6,
-             travel="You go up. The grade is honest for the first ten minutes "
+             travel="You go up. The grade is honest for the first few minutes "
                     "and then it stops being honest, making your legs burn "
                     "more than you feel they should."),
     ],
@@ -988,11 +1045,11 @@ PARK = {
              "again, but you kind of do again shyly, like 'Well, this is "
              "awkward,' and you kind of look around so you don't have too "
              "much eye contact.\" You do. You know that feeling and that "
-             "look. You ask her to continue.",
+             "look.",
              "clue:ivy"),
             ("\"There wasn't anyone else on the path. I'd have passed them on "
-             "my first loop. It's a mile of switchbacks and you can pretty "
-             "much see the whole thing.\"\n\n"
+             "my first loop. It's a mile of switchbacks and there's nowhere "
+             "to step off it.\"\n\n"
              "She pulls the blanket tighter, but not because she is cold.\n\n"
              "\"I ran the rest of it faster than I meant to. I couldn't tell "
              "you why. There weren't any birds. It was dead quiet... like "
@@ -1029,8 +1086,9 @@ PARK = {
                     "rhododendron closes and the trail noise stops, almost "
                     "all at once, the way sound stops when a door is being "
                     "quickly but quietly shut."),
-        Exit(label="Straight on toward the sink", to="basecamp", mins=8,
-             travel="You stay on the contour and follow the flagging tape "
+        Exit(label="Left — follow the flagging to the sink", to="basecamp",
+             mins=8,
+             travel="You go left along the contour and follow the flagging tape "
                     "somebody has already run in for you."),
         Exit(label="Back down to the trailhead", to="trailhead", mins=6,
              travel="Back down. It goes faster than it came."),
@@ -1041,7 +1099,7 @@ PARK = {
     id="blowdown", name="The Blowdown", depth=0, mx=2, my=1,
     tags={"surface", "park"},
     look=(
-        "Standing dead timber, forty acres of it. Hemlock, gray, barkless, "
+        "Standing dead timber, forty acres of it. Hemlock, gray, "
         "still upright — which is wrong. Blowdown falls. This did not fall.",
         "It died standing and it died all together. No fire scar, no beetle "
         "galleries under the bark you peeled back when you were here last to "
@@ -1096,8 +1154,9 @@ PARK = {
              "bark taken off and the wood beneath gone silver.\n\n"
              "They are chest height on a person shorter than you and they are "
              "spaced for somebody walking a line in the dark. The silver "
-             "blazes are on dead trees, which means they were cut before the "
-             "trees died... older than forty acres of impossible standing "
+             "blazes are on dead trees, but the bark has rolled in over the "
+             "edges of every cut, the way it only does on a living tree, which "
+             "means they were cut before the trees died... older than forty acres of impossible standing "
              "timber.\n\n"
              "They go downhill in a straight line. Down to Wolf Sink and then "
              "somebody else, later, spent the effort in taking the sign off a "
@@ -1133,14 +1192,17 @@ PARK = {
         "of a springhouse over a run of water that still works.",
         "And apple — two apple trees, gone wild and barely holding on in the "
         "shade, which nobody plants by accident. This was a place with a "
-        "family in it, nine hundred meters from the sink, not on the park "
-        "map, either. You remind yourself to ask someone about the homestead "
-        "later and regret not asking more questions at the station."
+        "family in it, half a mile from the sink, not on the park "
+        "map, either."
+    ),
+    first=(
+        "You make a note of the homestead, and regret not asking more "
+        "questions at the station."
     ),
     clues=[
         Clue("The chimney fall", 3,
-             "Dry-laid fieldstone, and a single dressed lintel that somebody "
-             "cut properly with a chisel with the date 1889.\n\n"
+             "Dry-laid fieldstone, and a single dressed lintel, cut properly "
+             "with a chisel, with the date 1889.\n\n"
              "Under it, in a different hand and a shallower cut, somebody "
              "scratched a second date the way you would scratch it with a "
              "nail, in a hurry, not meaning it to last: 1911.",
@@ -1154,16 +1216,16 @@ PARK = {
              "fieldstone, mortared, by somebody who came back here with a "
              "bucket of mortar a long time after the house fell in.\n\n"
              "You do not close a spring. A spring is the reason you build "
-             "where you build. You close a spring when you have stopped "
+             "where you build. You close the hole it drains into when you have stopped "
              "caring where the water goes and started caring what comes up "
              "out of it. Futile. Water will always find its way back down.",
              "clue:spring"),
         Clue("The cemetery", 4,
              "Thirteen stones on the rise above the house, field-cut, most of "
-             "them illegible.\n\n"
-             "Four of them are small. The sad truth of lives lived out in "
-             "1889.\n\n"
-             "The last one is not from 1889. It is newer, and it is set apart "
+             "them illegible. The ones you can read are from the 1890s.\n\n"
+             "Four of them are small. The sad truth of lives lived out up "
+             "here.\n\n"
+             "The last one is not from the 1890s. It is newer, and it is set apart "
              "from the others by a good twenty feet, and it faces the "
              "opposite way — every stone on this rise faces the house except "
              "this one, which faces downhill, toward the sink. There is no "
@@ -1177,8 +1239,8 @@ PARK = {
                     "and there are lights on it, and voices, and the ordinary "
                     "and also completely out of place sound of people at "
                     "work."),
-        Exit(label="Back up through the dead timber", to="blowdown", mins=8,
-             travel="Back up. You go faster than the ground requires."),
+        Exit(label="Up through the dead timber", to="blowdown", mins=8,
+             travel="Up. You go faster than the ground requires."),
     ],
 ),
 
@@ -1186,14 +1248,14 @@ PARK = {
     id="basecamp", name="Wolf Sink — Basecamp", depth=0, mx=4, my=3,
     tags={"surface", "park", "signal"},
     look=(
-        "You make it to the sink. There are two vehicles that should not have "
+        "At the sink there are two vehicles that should not have "
         "been able to get up here, a generator running a string of work "
         "lights, and a folding table with a map on it held down at the "
         "corners by rocks.",
         "Too many people. Two of them are in oversuits, silent, and are not "
         "going anywhere until somebody tells them to. The rest are standing "
         "or sitting around the table being as useful as they can be while "
-        "examining a map that does not show one the thing they need it to.",
+        "examining a map that does not show the one thing they need it to.",
         "And there — thirty yards off — at the edge of the light, the ground "
         "opens up under a stand of hemlock. Cold air comes out of it "
         "steadily, with occasional fluctuations enough to quietly stir the "
@@ -1204,7 +1266,7 @@ PARK = {
         "a floor under it.\n\n"
         "Nobody is going down that hole tonight except you. The reason a "
         "state SAR office came in rather than someone 'in-house.' There is "
-        "one person on this ridge with a current cave callout who also has a "
+        "one person on this ridge with a current cave rescue ticket who also has a "
         "vertical qualification, and you have been that person since this "
         "morning when somebody in Blakely made the call."
     ),
@@ -1214,17 +1276,17 @@ PARK = {
              "the surface.\" He does not waste your time. \"There's a survey "
              "you can check out — eleven pages from 1973 — surveyor's note "
              "says it's incomplete. Rigging's on you. You've got sixty "
-             "meters, a fresh cell, and the set. If you find flagging down "
+             "meters, a fresh battery, and the set. If you find flagging down "
              "there, orange is hers — off a reel in the hatchback. Only color "
              "we can tie to her for certain.\"",
              "brief"),
             ("\"Comms is going to be garbage. We'll hold the frequency and "
              "we'll take whatever we get.\" He taps the map twice, on "
-             "nothing. \"Turnaround is 600. If I haven't heard you by then I "
+             "nothing. \"Turnaround is 0600. If I haven't heard you by then I "
              "call Blakely and Blakely calls the state. From then it's a "
              "recovery and nobody's going down after you for at least a few "
              "days. This isn't Nutty Putty Cave, but then again, it's also "
-             "unmapped and unknown. If you're the outside specialist and you "
+             "half-mapped and unknown. If you're the outside specialist and you "
              "get lost, you're on your own for a while. Our one technical "
              "team is four hours away on another rescue job.\"",
              ""),
@@ -1243,8 +1305,8 @@ PARK = {
              "clue:sixtyeight"),
         ]),
         Person("Rosalind Alcott", "Wren's mother", [
-            ("Wren's mother Rosalind, a small, wiry woman in her late fifties "
-             "/ early sixties, is standing exactly at the edge of the work "
+            ("Wren's mother Rosalind, a small, wiry woman somewhere around "
+             "sixty, is standing exactly at the edge of the work "
              "lights, where she has been for the last six hours.\n\n"
              "\"You're the one going down.\"\n\n"
              "It is not a question, so you do not answer it like one. You "
@@ -1256,10 +1318,10 @@ PARK = {
              "her coat pockets and she does not take them out. \"She wouldn't "
              "say where — just Piney Ridge. I thought there was somebody. You "
              "think that, don't you, when she goes quiet and starts going to "
-             "another place basically every weekend.\"",
+             "another place every few weekends.\"",
              ""),
             ("\"Six weeks ago she came for Sunday and she was fine, and she "
-             "was funny, and she did the washing-up. We've had this stupid "
+             "was funny, and she did the dishes. We've had this stupid "
              "joke since she was a teenager — if I ever start walking funny, "
              "shoot me — that sort of thing — from every bad horror film we "
              "ever watched. So when she said it at the door I laughed, "
@@ -1285,7 +1347,7 @@ PARK = {
              ""),
             ("\"Keys — her car, my car, same ring, since before either of us "
              "had anything worth locking.\" She turns the cup around and does "
-             "not drink out of it. \"I came up at 4:00 this morning. I opened "
+             "not drink out of it. \"I came up at four this morning. I opened "
              "it myself... couldn't stand next to it and not open it.\"\n\n"
              "\"Didn't see anything, right? Me neither. Not a single f---ing "
              "clue. I just don't understand. What do you know? What did she "
@@ -1294,7 +1356,7 @@ PARK = {
              "'a nice boy from church,' and I was the furthest thing.\" You "
              "reassure her that she hasn't missed anything of note, despite "
              "the growing feeling of sad suspicion that that isn't true. You "
-             "ask her about what Trammell found. \"What, that glass in the "
+             "ask her whether she found anything in the car. \"What, that glass in the "
              "bag? I dunno — looked like a camera lens or something? I "
              "mean... it's a lens off something, but who cares? Just some "
              "junk from some other explorer messing around in there like her, "
@@ -1302,13 +1364,12 @@ PARK = {
              "to that guy.\" She points at Trammell.\n\n"
              "She pauses. \"No — I — sorry — I just — I don't know what I'm "
              "saying anymore. I guess I gave it to him because I just had "
-             "this feeling that I should have kept hold of it. Or maybe "
-             "someone else I thought could use it, but I couldn't tell you "
-             "why.\"",
+             "this feeling somebody should keep hold of it. Somebody who "
+             "was going down there. I couldn't tell you why.\"",
              "clue:keys"),
             ("\"Wren caves. Caved. Caves. Ten years, since school, and she "
              "is the most careful person I have ever met about it — till now, "
-             "I guess — buddy system, call-outs, the whole song and dance.\" "
+             "I guess — buddy system, callouts, the whole song and dance.\" "
              "Junie's hands are steady on the cup. \"Caving isn't my thing, "
              "but we always talked about it and I never stopped her. Just "
              "wanted her to be happy. And then in March she started going "
@@ -1328,7 +1389,7 @@ PARK = {
              "own a very long time.' I asked what that meant. She said never "
              "mind and that it was a joke and that it was just fun and "
              "deflection, deflection, deflection. She got up and did the "
-             "washing rather than look at me. Not a good night. And now we're "
+             "dishes rather than look at me. Not a good night. And now we're "
              "here.\"\n\n"
              "She dissolves into a slow spiral of self-doubt, what-ifs, and "
              "genuine fear. You say and do what you can, but you have to move "
@@ -1348,10 +1409,10 @@ PARK = {
              "PARTY UNWILLING.",
              "clue:map"),
         Clue("The thing out of her car", 2,
-             "It is on the corner of the map in a bag inside a freezer bag, "
+             "It is on the corner of the map in a freezer bag, "
              "which is what you do with a thing you cannot figure out what it "
              "is for, you suppose. Fair enough.\n\n"
-             "You take it out. She was right. Definitely a lens. Glass, "
+             "You take it out. Definitely a lens. Glass, "
              "thick, a little bigger than a silver dollar, convex on both "
              "faces, gone cloudy around the rim. It sits in a felt sleeve "
              "worn through at one corner. No maker's mark, no frame, no "
@@ -1370,7 +1431,7 @@ PARK = {
     pickups=[
         Pickup("the lens", needs="clue:lens", flag="lens",
                take="You put it in your chest pocket with the zip, the one "
-                    "spare cells go in; that is the pocket you "
+                    "spare batteries go in; that is the pocket you "
                     "can reach even with a pack on.\n\n"
                     "It weighs almost nothing. You do not think about it "
                     "again for a long time.",
@@ -1386,10 +1447,14 @@ PARK = {
              need="ready",
              deny="not until you have your brief and have spoken to the "
                   "family"),
-        Exit(label="Back up toward the hollow", to="hollow", mins=9,
-             travel="You walk back up out of the lights for a minute, "
+        Exit(label="Up toward the hollow", to="hollow", mins=9,
+             travel="You walk up out of the lights, "
                     "because you want to hear what the ridge sounds like "
                     "without a generator on it."),
+        Exit(label="Follow the flagging up to the ridge trail",
+             to="ridge_trail", mins=8,
+             travel="You follow the flagging tape up to the contour and "
+                    "along it to the junction."),
     ],
 ),
 }
@@ -1422,8 +1487,8 @@ PAYOFFS = {
 },
 
 "stream": {
-    "clue:spring": "Downstream is north-west. Upstream, over your head and "
-                   "nine hundred meters of it, is a springhouse in a hollow "
+    "clue:spring": "Downstream is southwest. Upstream, half a mile off and "
+                   "a long way over your head, is a springhouse in a hollow "
                    "with a course of mortared fieldstone in the mouth of it. "
                    "This water and that water are the same water. Somebody "
                    "worked that out before you did, and then went and got "
@@ -1450,8 +1515,7 @@ PAYOFFS = {
                     "won't you.\n\n"
                     "Wren said that at a door, in the rain, six weeks ago, "
                     "and her mother said yes because it was the door and it "
-                    "was raining. Your helmet's off and you go through the "
-                    "hole.",
+                    "was raining. Your helmet's off.",
 },
 
 "long_room": {
@@ -1462,8 +1526,8 @@ PAYOFFS = {
 },
 
 "ladder": {
-    "clue:1911": "1911 is cut into a lintel in Sander's Hollow in a hand "
-                 "in a hurry, and it is written in lamp-black on this wall beside a date "
+    "clue:1911": "1911 is scratched into a lintel in Sander's Hollow by a "
+                 "hand in a hurry, and it is written in lamp-black on this wall above a date "
                  "from this year in the same hand and the same black.",
     "clue:blaze": "Hatchet blazes, chest height on somebody shorter than "
                   "you, cut before forty acres of hemlock died standing, "
@@ -1479,21 +1543,28 @@ PAYOFFS = {
 },
 
 "deep": {
-    "clue:somebody": "You asked what was down here, Junie said, and Wren "
+    "clue:somebody": "I asked what was down here, Junie said, and Wren "
                      "thought about it for a long time because she wanted "
-                     "to get it right.\n\nSomebody who's been on their own "
-                     "for a very long time.",
+                     "to get it right.\n\nSomething that's been on its own "
+                     "a very long time.",
     "clue:sixtyeight": "Day four, in '68, they brought a man out of this "
                        "alive — dehydrated but fine. He gave a clean "
                        "statement, and ten days later his wife of "
                        "twenty-something years told the county he was not "
                        "her husband and would not retract it.",
     "clue:board": "Two names on a board outside a ranger station, and a "
-                  "third already measured out before you ever signed the "
-                  "trailhead register. You do the math kneeling here, in "
+                  "third already measured out before you ever parked at the "
+                  "trailhead. You do the math kneeling here, in "
                   "the dark, with somebody's helmet lamp still burning in "
-                  "your hands, and you do not like how easily the board "
+                  "front of you, and you do not like how easily the board "
                   "could hold more than three.",
+},
+
+"adit": {
+    "clue:silence": "On the recorder in your chest pocket, at twenty-six "
+                    "seconds, there is a sound like a large door being "
+                    "pulled to. You have not heard it yet. You are standing "
+                    "on the inside of it now.",
 },
 }
 
@@ -1510,3 +1581,6 @@ PARK_AMBIENCE = [
     "Something goes through the laurel about forty yards out, unhurried.",
     "Your radio hisses once, on no channel you have selected.",
 ]
+
+# ...and when the ridge has given you everything it had
+PARK_QUIET = "You stand still and listen. The ridge has nothing more to give you."

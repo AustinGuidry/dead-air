@@ -1,8 +1,6 @@
 # DEAD AIR
 
-A first-person cave-horror game for the terminal. You are a search-and-rescue
-officer entering an unsurveyed sink in Piney Ridge National Park, nineteen
-hours behind a solo caver who did not come out.
+A first-person cave-horror game for the terminal. You are a search-and-rescue officer going into a half-mapped sink in Piney Ridge National Park after a solo caver who is nineteen hours overdue.
 
 It opens above ground. You have one evening of light to walk the approach,
 read the ground, and talk to the people who saw Wren Alcott last — and then
@@ -10,7 +8,7 @@ you go down the hole.
 
 Every room draws itself — there are no image files. Each scene is calculated
 live, as if a camera really were standing in the cave, and lit by your actual
-lamp, so the picture loses reach and detail as the cell dies, for the same
+lamp, so the picture loses reach and detail as the battery dies, for the same
 reason the prose does.
 
 Built with [Textual](https://textual.textualize.io/), so it runs anywhere
@@ -76,7 +74,7 @@ If you would rather have the source to hand:
 | `X`   | look again |
 | `F`   | switch the helmet lamp on or off |
 | `D`   | stop the beam down — half the burn rate, half the sight |
-| `C`   | swap in a spare cell |
+| `C`   | swap in a spare battery |
 | `N`   | new run |
 | `Q` / `ESC` | back to the menu (which has new run and quit) |
 

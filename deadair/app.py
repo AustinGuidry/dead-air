@@ -11,11 +11,8 @@ from textual.widgets import Static
 
 from . import art, save, update
 from .content import ROOMS
-from .state import Game, ROPE_TOTAL, DAYLIGHT_TOTAL, PARK_START, PAGE
-
-# the endings you walk out of — the rest do not get an "out at" time
-SURVIVED = ("OUT_WITH", "OUT_ALONE", "RESCUE_HARD", "RESCUE_INJURED",
-            "RESCUE_CLEAN")
+from .state import (Game, ROPE_TOTAL, DAYLIGHT_TOTAL, PARK_START, PAGE,
+                    SURVIVED)   # the endings you walk out of: an "out at" time
 
 STYLE = {
     "title": "bold #f0b46b",
@@ -97,7 +94,7 @@ class Controls(Screen):
         ("X", "look again"),
         ("F", "switch the helmet lamp on or off — above ground only"),
         ("D", "stop the beam down: half the burn, half the sight"),
-        ("C", "swap in a spare cell"),
+        ("C", "swap in a spare battery"),
         ("N", "abandon this run and start a new one"),
         ("Q", "back to the menu — the run keeps where it stands, and the "
               "menu has NEW RUN and QUIT in it"),
@@ -247,7 +244,7 @@ class DeadAir(App):
         Binding("r", "radio", "radio"),
         Binding("x", "look", "look"),
         Binding("d", "dim", "dim beam"),
-        Binding("c", "cell", "swap cell"),
+        Binding("c", "cell", "swap battery"),
         Binding("f", "lamp", "lamp"),
         Binding("n", "restart", "new run"),
         Binding("escape", "menu", "menu"),
@@ -549,9 +546,9 @@ class DeadAir(App):
         kit.append("  cleared to go [#a9c987]yes[/]" if "ready" in g.flags
                    else "  cleared to go [#5a554e]not yet[/]")
         if "lens" in g.flags:
-            kit.append("  the lens      [#cdc6bb]in your pocket[/]")
+            kit.append("  the lens      [#cdc6bb]pocketed[/]")
         elif "chose:lens" in g.flags:
-            kit.append("  the lens      [#5a554e]left on the table[/]")
+            kit.append("  the lens      [#5a554e]on the table[/]")
         self.query_one("#kit", Static).update("\n".join(kit))
         self.query_one("#map", Static).update(
             "[#8d867c]APPROACH[/]\n" + self.render_approach())
@@ -606,7 +603,7 @@ class DeadAir(App):
         self.query_one("#map", Static).update(self.render_map())
 
         kit = [f"[#8d867c]KIT[/]"]
-        kit.append(f"  spare cells   [#cdc6bb]{g.cells}[/]")
+        kit.append(f"  batteries     [#cdc6bb]{g.cells}[/]")
         kit.append("  helmet        [#a9c987]recovered[/]"
                    if "took_find" in g.flags else
                    "  helmet        [#5a554e]—[/]")
@@ -692,7 +689,7 @@ class DeadAir(App):
         else:
             rows.append("[#8d867c] L[/] listen   [#8d867c]R[/] radio   "
                         "[#8d867c]X[/] look again   [#8d867c]D[/] dim beam   "
-                        "[#8d867c]C[/] swap cell")
+                        "[#8d867c]C[/] swap battery")
         rows.append("[#8d867c] Q[/] menu")
         self.query_one("#actions", Static).update("\n".join(rows))
 

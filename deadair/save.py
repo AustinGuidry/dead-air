@@ -92,5 +92,5 @@ def describe(game):
     if game.room.name != "—":   # the deepest rooms do not have a name,
         bits.append(game.room.name.lower())   # and are not given one here
     bits += [f"{abs(game.depth)} m down", f"{game.clock()} elapsed",
-             f"{game.lamp:.0f}% cell"]
+             f"{game.lamp:.0f}% battery"]
     return " · ".join(bits)
