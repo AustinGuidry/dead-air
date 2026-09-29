@@ -176,10 +176,14 @@ An ending clears the slot: a finished run is a story, not a save.
 
 ## The renderer
 
-`art.py` has five scene kinds — `tube`, `chamber`, `hole`, `forest`, `void` —
-and one shading pipeline. A `Scene` is about twenty numbers: passage radii,
-bedding relief, chamber extents, tree and canopy counts, fog, lamp reach,
-palette, camera tilt.
+`art.py` draws every room from a `Scene`: a kind of place and the numbers
+that shape it — passage radii, bedding relief, chamber extents, tree and
+canopy counts, fog, lamp reach, palette, camera tilt — plus, for the rooms
+the prose furnishes, what is in them. The kinds: `forest` above ground;
+`crawl` and `drop` for the Letterbox and the Drop; `dome`, `hall`, `rift`,
+`mine`, `jumble` and `under` for the furnished cave rooms; `void` for the
+dark. The plain `tube`, `chamber` and `hole` are no longer used by any room;
+a room with no Scene of its own falls back to a `tube`.
 
 Notes for anyone changing it:
 
@@ -205,10 +209,122 @@ Notes for anyone changing it:
   shadow seats each trunk in the ground; and each hit is shaded by what it
   is — pale path dirt under a slot of sky, bark, dark needles and leaf —
   with the brightness carried by the haze in the distance.
+- Wolf Sink is the one surface place that is built as well as grown. Basecamp
+  and the sink are forest scenes over one shared layout — the hole, the
+  camp's clearing, two vehicles, the generator, the table, the people, a
+  string of bulbs and floods on stands — seen from the flagging at dusk and
+  from the lip at two in the morning. The camp's gear is binned into the
+  same ground cells as the trees. Its lamps light with shadows cast by
+  anything standing (people, vehicles, trunks, you) and scatter into the
+  air around them; a lamp reaches into the sink only through its mouth.
+- Two cave rooms are drawn as the prose frames them rather than as generic
+  passages. The Letterbox (`crawl`) is a bedding-plane crawl: two beds of
+  limestone a head's height apart, pinching shut to the sides, the pack
+  pushed ahead, a cave cricket on the silt, and the drag marks and the small
+  handprint running off into the dark. The Drop (`drop`) is the view with
+  your head over the edge: the throat through the gallery floor, the
+  flake and the thread on the lip, the free hang to a floor of broken plate
+  twelve metres down. Both shade by material, and in both the helmet beam
+  is centred where your head points.
+- No two cave rooms are the same picture. Each is one of the shapes above —
+  a dome (Bell, Roost, Wren's Cache, the Nest), a hall (Dry Gallery, Foot of
+  the Drop, the Keyhole, the Sallow, the Long Room, the Deep), a rift
+  (Stream, Carbide Ladder), a mine drift (the Old Workings), a jumble of fallen
+  blocks (Breakdown, Sump, Choke, Grip), or flooded (Under) — dressed with
+  what its prose puts in it. `props` are clusters of rotated boxes and
+  capsules (a cairn, a pack and its boulder, the rope, rungs, timber sets,
+  her suit and helmet, Wren herself); `marks` are paint on the rock (soot,
+  lamp-black lettering, footprints, crickets, a flood line); `ground` is the
+  floor (cobble, broken plate, rubble, guano, silt, dust, bone). A few rooms carry
+  more: `glow` for a light of their own (her helmet lamp, the gray at the
+  top of the workings), `murk` for bad air pooled on the floor, `clear` for
+  water the beam goes down into, `absorb` for the thing the beam goes into
+  and does not come out of. The builders for all of it sit just above
+  `SCENES` and are data, not code: change a number, not a function.
+- The Breakdown is a real collapse, not a room of boxes. Limestone breaks
+  along its beds and joints, so each rock (`_Rock`) is a convex solid cut
+  by planes: two near-parallel bedding faces, five to eight joint faces
+  never square to one another or quite upright, and corners knocked off.
+  The broken face is a creased fracture with a slight bend across it,
+  added only when the normals are taken. `_pile` drops them in order —
+  car-sized slabs tilted and half sunk in `rubble`, blocks landing on
+  whatever is under them, spall heaped round the feet and down the line
+  you walk — and keeps a way through the first few metres. The roof they
+  came out of (`scar`) is flat broken bedding, faceted and stepped, not
+  the lumps the other rooms' rock has.
+- The Choke and the Grip are the same fill seen twice: the forty tons the
+  miners brought down behind them in 1911, fifteen metres of it at forty
+  degrees. It is a `_pile` on a `slope` — floor and roof climb with it,
+  and every rock lies tilted with the hill — scaled down to the passage
+  (`size`), kept clear of both viewpoints and of the lens (`eyes`), with
+  a way up the middle the whole length. In a passage that narrow a rock
+  dropped anywhere across it nearly always blocks the way, so `sides`
+  drops each slab and block to one side of the way or the other, its far
+  side going into the wall: the choke's walls are its own blocks. The
+  floor is `scree` — the heap under loose angular chips of every size
+  (`_chips`), not a tiling. The Choke looks up it from the foot at the
+  hand's width of gray at the top; the Grip is six metres up, turning.
+- A pile costs something to work out (the Choke's tries ~400 rocks to
+  keep ~100), so it is built the first time its room is drawn (`_Later`),
+  on the worker thread that draws the rooms ahead, not at import — where
+  the two piles were a second's pause before the title.
+- The Bell is drawn to be read in one look: you have climbed down out of
+  the Letterbox and turned round, so all three ways the prose offers are in
+  frame. A way's shape follows what made it: `ways` entries are (bearing,
+  width, height, sill), and one much wider than tall is a bedding-plane
+  slot (flat, thinning to the sides), one much taller than wide a canyon
+  (near-parallel walls, wider at the stream), anything else the old round
+  tube. `sill` lifts a way up the wall (the Letterbox is knee-high) or,
+  negative, sinks it into the floor, which cuts it off — an arch or a
+  canyon standing on the floor instead of an oval hole in the wall. `bell`
+  draws a dome's walls in above head height. The cobble floor is loose
+  rounded stones of mixed sizes lying in sand (`_cobbles`), and the
+  crickets (`specks`) crowd in patches rather than rows.
+- The Foot of the Drop is the first room bigger than the lamp. Off the
+  rope, you look out at the chamber forking round a buttress of jointed
+  rock (`_buttress`, a tall `_Rock`) and running off both ways into the
+  dark — two big `ways` sunk into the floor. The rope hangs in front of the
+  buttress onto shattered plate (`plate`: slabs a pace or two across, each
+  at its own tilt, the cracks open), its tail coiled where it landed, and
+  the block beside it carries your tag at knee height (`_marked_block`
+  puts the tag on whichever face you can see). The rope is lit evenly: a
+  strand two pixels wide shaded as a solid was all dark edge.
+- The Stream Passage stands you in the water looking downstream, tilted
+  down so the stream is in frame even fullscreen. `ledges` draws the beds
+  the water cut down through: each parting a dark groove running the
+  length of the wall, some faint, some deep, wavering a little — the lines
+  that make a canyon read as going away from you. `flow` makes the water
+  run: ripples on it (`_ripple`), so the walls come back broken and the
+  lamp is gathered into a wavering net of bright lines on the cobble bed
+  under a hand's depth of `clear` water. The flood line is a tide mark
+  with a wandering top and a dark rim of dried scum. Only the water is
+  shaded as water now (by material, not by height), so something sitting
+  on it — the salamander, the rock at the waterline, the Sump's dive line
+  going in — keeps its own shading. The salamander is really there, side
+  on in the shallows, but at the game's render size it is a few pixels.
+- The Keyhole is the far wall of the cache and the slot in it, seen from a
+  step to one side. The slot is a `ways` entry with the shape `"keyhole"`:
+  an out-of-round tube shoulder-wide at the top over a hip-wide slot that
+  wanders a little, snaking once it is half a metre into the rock so the
+  light never finds the far end. From the side you see one inner wall of
+  it going back, which is what makes it a passage and not a black shape.
+  The face carries faint bed partings (`ledges`, weaker ledges paint
+  fainter), a `joint` mark — the crack the slot opened along, running on
+  up the rock above it — and `scuff` marks, rubbed pale on both lips at
+  hip height.
+- The palettes are luminance ramps, and a very few materials keep their own
+  colour through them (`_TINT` in `art.py`) — the ones the story names by
+  it: Wren's orange flagging, her red pack, the blue dive line, the gray at
+  the top of the workings. The Sallow and Under have palettes of their own.
 - Frames are cached on `(room, light band, sky band, w, h)` — quantized, or
   the cache would never hit — rendered on a worker thread, and the rooms
   reachable from where you are standing are drawn before you walk into them.
-  A forest frame costs a couple of seconds, a cave frame well under one.
+  Forests and furnished rooms render at a reduced pixel budget and upscale;
+  a frame costs between a third of a second and about four (the Choke).
+- The picture only reaches the terminal as graphics if textual-image is
+  asked what the terminal can do before Textual starts (`probe_graphics()`
+  in `app.py`); asked afterwards, Textual's input thread eats the answer
+  and every terminal gets half-blocks.
 
 ## Tuning
 
