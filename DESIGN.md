@@ -192,10 +192,23 @@ Notes for anyone changing it:
   roughly where the rock is.
 - Chambers are smooth-minimum boxes. A hard corner reads instantly as
   architecture rather than cave.
+- A forest is a planted stand, not a handful of props. `_Stand` puts a few
+  hundred trees on a jittered lattice across the wedge you can see — trunks,
+  a cone crown each (hemlock tall and narrow, oak squat, saplings low), and
+  rhododendron brush walling the path — and bins them into 2 m ground cells.
+  A point measures only what its cell lists, grouped by how full the cell
+  is, so the cost barely depends on how many trees there are. `trees` on a
+  forest Scene is the stem count; `understory`, `canopy` and `broadleaf` set
+  the brush, the height of the lowest branches, and the oak share.
+- Every forest ray is grounded. One that skims the hillside and runs out of
+  steps is put down on the slope analytically (`_ground_t`); a contact
+  shadow seats each trunk in the ground; and each hit is shaded by what it
+  is — pale path dirt under a slot of sky, bark, dark needles and leaf —
+  with the brightness carried by the haze in the distance.
 - Frames are cached on `(room, light band, sky band, w, h)` — quantized, or
   the cache would never hit — rendered on a worker thread, and the rooms
   reachable from where you are standing are drawn before you walk into them.
-  A forest frame costs about two seconds, a cave frame well under one.
+  A forest frame costs a couple of seconds, a cave frame well under one.
 
 ## Tuning
 

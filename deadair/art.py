@@ -84,12 +84,13 @@ class Scene:
     hole_r: float = 2.6         # hole radius for kind="hole"
     hole_z: float = 5.2         # how far ahead the hole sits
     depth_below: float = 12.0   # how deep the hole goes before rock
-    trees: int = 0              # trunk count for kind="forest"
-    canopy: float = 0.0         # crown-centre height above the floor, 0 = bare
-    understory: float = 0.0     # low-brush density, as a multiple of `trees`
+    trees: int = 0              # trunks in view — a stand, or around a hole
+    canopy: float = 0.0         # height of the lowest branches, 0 = bare
+    understory: float = 0.0     # how thick the brush is, 1.0 = walls the path
     path: float = 0.0           # half-width of a cleared path, 0 = none
     rise: float = 0.0           # ground slope away from you — the ridge going up
     deadwood: bool = False      # bare standing trunks — no crowns, no brush
+    broadleaf: float = 0.0      # share of the canopy that is oak, not hemlock
     lights: float = 0.0         # work lights on a generator, behind your back
     lens: float = 0.0           # cap the lens at this half-angle tan, 0 = fill
     fog: float = 16.0           # scatter distance
@@ -105,6 +106,278 @@ def _smin(a, b, k):
     """Polynomial smooth minimum — rounds the corner where two surfaces meet."""
     h = np.clip(0.5 + 0.5 * (b - a) / k, 0.0, 1.0)
     return b + (a - b) * h - k * h * (1.0 - h)
+
+
+# --------------------------------------------------------------------------
+#  the stand — every tree in a forest scene, planted once
+# --------------------------------------------------------------------------
+#
+# A forest is a few hundred trunks, and a signed distance has to be the
+# distance to the *nearest* of them, so the naive version measures every
+# tree at every step of every ray — which is why the woods used to stop at
+# twenty trees. Instead the ground is cut into cells, and each cell lists
+# only the things that reach within a margin of it. A point looks up its
+# cell and measures a handful; anything unlisted is at least the distance to
+# the cell wall plus that margin away, so that is as far as a step may go.
+
+_TREE_DEPTH = 56.0    # how far back the stand is planted
+_CELL = 2.0           # lookup cell on the ground, metres a side
+_STRIDE = 1.7         # the longest step a forest ray takes
+_GX0, _GZ0 = -112.0, -6.0
+_NX, _NZ = 113, 51    # the grid: x -112..114, z -6..96
+
+
+def _rise(s, z):
+    """The ground goes up ahead of you — the ridge climbing."""
+    return s.rise * np.maximum(z - 4.0, 0.0)
+
+
+def _path_x(s, z):
+    """Where the path runs: wandering, then bending off out of sight.
+
+    A path that ran straight to the horizon would be an avenue cut through
+    the stand. This one turns away after a dozen metres, the way a
+    switchback does, and the trees close in behind the turn.
+    """
+    v = s.var
+    turn = 1.0 if int(v) % 2 else -1.0
+    return (1.1 * np.sin(z * 0.13 + v) + 0.5 * np.sin(z * 0.37 + v * 1.7)
+            + turn * 0.012 * np.maximum(z - 10.0, 0.0) ** 2)
+
+
+def _bin(x, z, reach, margin):
+    """For each lookup cell, the objects whose footprint comes within
+    `margin` of it, padded out with the sentinel index len(x)."""
+    lo_i = np.floor((x - reach - margin - _GX0) / _CELL).astype(int)
+    hi_i = np.floor((x + reach + margin - _GX0) / _CELL).astype(int)
+    lo_j = np.floor((z - reach - margin - _GZ0) / _CELL).astype(int)
+    hi_j = np.floor((z + reach + margin - _GZ0) / _CELL).astype(int)
+    cells = [[] for _ in range(_NX * _NZ)]
+    for k in range(len(x)):
+        for j in range(max(lo_j[k], 0), min(hi_j[k], _NZ - 1) + 1):
+            for i in range(max(lo_i[k], 0), min(hi_i[k], _NX - 1) + 1):
+                cells[j * _NX + i].append(k)
+    table = np.full((_NX * _NZ, max(1, max(map(len, cells)))), len(x),
+                    dtype=np.int32)
+    for c, ids in enumerate(cells):
+        table[c, :len(ids)] = ids
+    return table
+
+
+class _Kind:
+    """One kind of thing in the stand — trunks, crowns, saplings, brush —
+    with the cells that find it and the band of height it lives in, so a
+    point well above or below the band can skip it.
+
+    `margin` trades the two costs: a wide one lists more things per cell,
+    a narrow one holds the step short near every cell wall.
+
+    Each cell's list is stored already unpacked — every field of every
+    thing on it, side by side — so a point fetches its whole neighbourhood
+    in one contiguous copy instead of one scattered gather per field. The
+    real entries come first and the sentinel pads the rest, so a cell
+    listing three things can be read as just three columns.
+    """
+
+    def __init__(self, x, z, reach, lo, hi, margin, **params):
+        self.n = len(x)
+        self.lo, self.hi = float(lo), float(hi)
+        self.reach = float(np.max(reach)) if self.n else 0.0
+        self.margin = margin
+        if not self.n:
+            return
+        table = _bin(x, z, reach, margin)
+        # the sentinel is a copy of the first one, parked far off the map
+        cols = [np.append(x, 1.0e4), np.append(z, 1.0e4)]
+        cols += [np.append(v, v[0]) for v in params.values()]
+        # (cell, field, slot)
+        self.blk = np.ascontiguousarray(
+            np.stack(cols).astype(F32)[:, table].transpose(1, 0, 2))
+        self.count = (table < self.n).sum(axis=1)
+        full = table.shape[1]
+        self.tiers = sorted({min(t, full) for t in (1, 2, 3, 5, 8, 12, full)})
+
+    def nearest(self, cell, fn):
+        """Distance from each point to the nearest thing of this kind; 1e3
+        where its cell lists nothing.
+
+        `fn(j, fields)` measures points `j` against the fields of what their
+        cells list — x, z, then the params in the order given, each one
+        column per listed thing. Points go through grouped by how full their
+        cell is, so a sparse cell never pays for the fullest one.
+        """
+        out = np.full(cell.shape, 1.0e3, dtype=F32)
+        cnt = self.count[cell]
+        lo = 0
+        for hi in self.tiers:
+            j = np.flatnonzero((cnt > lo) & (cnt <= hi))
+            if j.size:
+                b = self.blk[cell[j], :, :hi]
+                out[j] = fn(j, [b[:, f] for f in range(b.shape[1])]).min(axis=1)
+            lo = hi
+        return out
+
+
+class _Stand:
+    """The trees and brush of one forest scene."""
+
+    def __init__(self, s: Scene):
+        rng = np.random.default_rng(int(s.var * 1000) + 7)
+        D = _TREE_DEPTH
+
+        # Plant on a jittered lattice turned off the view axis: spaced the
+        # way a stand thins itself out, without the avenues a square grid
+        # shows straight down its rows. `trees` is how many stems end up in
+        # the wedge you can see; a fifth of the lattice is left empty.
+        keep = 0.8
+        area = 1.6 * (D * D - 1.0) + 8.0 * (D - 1.0)
+        a = math.sqrt(area * keep / max(1, s.trees))
+        span = int(math.hypot(1.6 * D + 4.0, D) / a) + 2
+        gi, gj = np.meshgrid(np.arange(-span, span + 1),
+                             np.arange(-span, span + 1))
+        lx = (gi.ravel() + rng.uniform(-0.42, 0.42, gi.size)) * a
+        lz = (gj.ravel() + rng.uniform(-0.42, 0.42, gi.size)) * a
+        th = 0.41 + s.var * 0.37
+        tx = lx * math.cos(th) - lz * math.sin(th)
+        tz = lx * math.sin(th) + lz * math.cos(th)
+        ok = ((tz > 1.0) & (tz < D) & (np.abs(tx) < 1.6 * tz + 4.0)
+              & (rng.random(gi.size) < keep))
+        tx, tz = tx[ok], tz[ok]
+
+        # most stems middling, a few old ones, and a shade-suppressed
+        # understory of saplings that never got their light
+        tr = 0.08 + 0.22 * rng.random(tx.size) ** 1.7
+        old = rng.random(tx.size) < 0.07
+        tr[old] += rng.uniform(0.10, 0.18, old.sum())
+
+        # Two thick ones planted close on either side of the path, so you
+        # are looking *into* the stand and not at the edge of a clearing.
+        if s.path:
+            hz = rng.uniform(3.4, 5.6, 2)
+            hx = _path_x(s, hz) + np.array([-1.0, 1.0]) * (
+                s.path + rng.uniform(1.0, 2.4, 2))
+            room = np.min(np.hypot(tx[:, None] - hx, tz[:, None] - hz), axis=1)
+            tx, tz, tr = tx[room > 2.2], tz[room > 2.2], tr[room > 2.2]
+            tx = np.append(tx, hx)
+            tz = np.append(tz, hz)
+            tr = np.append(tr, rng.uniform(0.28, 0.38, 2))
+
+        # nothing on the path, and nothing standing in the camera's lap
+        clear = ~((tz < 2.2) & (np.abs(tx) < 1.4))
+        if s.path:
+            clear &= np.abs(tx - _path_x(s, tz)) > s.path + tr + 0.5
+        tx, tz, tr = tx[clear], tz[clear], tr[clear]
+        n = tx.size
+        base = s.floor + _rise(s, tz)
+
+        lean = rng.uniform(-0.035, 0.035, n)
+        young = tr < 0.11
+        self.leafy = bool(s.canopy) and not s.deadwood
+        if not self.leafy:
+            # Standing dead hemlock, not a colonnade: the tops snap off at
+            # every height, a third of them lean, and some are stumps.
+            tr = tr * rng.uniform(0.75, 1.35, n)
+            top = rng.uniform(2.5, 16.0, n)
+            stump = rng.random(n) < 0.12
+            top[stump] = rng.uniform(0.4, 1.8, stump.sum())
+            tilted = rng.random(n) < 0.33
+            lean[tilted] = rng.uniform(-0.15, 0.15, tilted.sum())
+        else:
+            # Hemlock and pine: a tall narrow cone per tree, widest at the
+            # skirt, the skirt drooping at the tips. Oak, where there is
+            # any, is a squat wide crown on the same frame. Saplings carry
+            # their branches almost to the ground — they fill the band
+            # between the brush and the canopy that otherwise shows sky
+            # under every tree.
+            cr = 1.0 + tr * 5.5 + rng.uniform(0.0, 0.7, n)
+            skirt = s.canopy * rng.uniform(0.6, 1.35, n)
+            ch = cr * rng.uniform(2.3, 3.4, n)
+            droop = cr * rng.uniform(0.25, 0.55, n)
+            oak = ~young & (rng.random(n) < s.broadleaf)
+            k = oak.sum()
+            cr[oak] = 1.8 + tr[oak] * 7.0 + rng.uniform(0.0, 1.0, k)
+            ch[oak] = cr[oak] * rng.uniform(0.9, 1.3, k)
+            droop[oak] = cr[oak] * rng.uniform(0.35, 0.6, k)
+            skirt[oak] = s.canopy * rng.uniform(0.7, 1.2, k)
+            k = young.sum()
+            cr[young] = rng.uniform(0.6, 1.3, k)
+            skirt[young] = rng.uniform(0.15, 1.1, k)
+            ch[young] = cr[young] * rng.uniform(1.8, 2.7, k)
+            droop[young] = cr[young] * rng.uniform(0.25, 0.55, k)
+            top = skirt + ch * 0.8
+
+            # A crown sits where its trunk has leaned to by that height.
+            cx = tx + lean * np.minimum(skirt + ch * 0.3, 9.0)
+            for name, pick in (("crowns", ~young), ("saplings", young)):
+                setattr(self, name, _Kind(
+                    cx[pick], tz[pick], cr[pick],
+                    lo=np.min(skirt[pick], initial=99.0),
+                    hi=np.max((skirt + ch)[pick], initial=0.0), margin=1.0,
+                    sk=(base + skirt)[pick],
+                    # the crown's two faces as planes in (radius, height),
+                    # normalised: upper = r*A + y*B - C, lower = D - r*E - y*F
+                    A=(ch / np.hypot(ch, cr))[pick],
+                    B=(cr / np.hypot(ch, cr))[pick],
+                    C=(cr * ch / np.hypot(ch, cr))[pick],
+                    D=(droop * cr / np.hypot(cr, droop))[pick],
+                    E=(droop / np.hypot(cr, droop))[pick],
+                    F=(cr / np.hypot(cr, droop))[pick]))
+
+        self.trunks = _Kind(tx, tz, tr * 1.6 + np.abs(lean) * 9.0,
+                            lo=0.0, hi=np.max(top, initial=0.0), margin=1.0,
+                            base=base, lean=lean, r=tr, top=top)
+
+        # Brush: rhododendron and laurel walling the path in, and more of it
+        # scattered back through the stand. None in the dead timber.
+        # `understory` is how thick it is: 1.0 walls the path in for the
+        # first thirty metres and puts a bush under every fourth tree.
+        nh = 0 if s.deadwood else int(28 * s.understory)
+        ns = 0 if s.deadwood else int(n * s.understory / 4.0)
+        hz = 4.0 + rng.random(nh) ** 1.2 * 26.0
+        side = np.where(rng.random(nh) < 0.5, -1.0, 1.0)
+        br_h = rng.uniform(0.9, 1.6, nh)
+        hx = _path_x(s, hz) + side * (s.path + br_h * 0.55
+                                      + rng.uniform(0.0, 0.9, nh))
+        sz = np.sqrt(rng.uniform(4.0 ** 2, D * D, ns))
+        sx = rng.uniform(-1.0, 1.0, ns) * (1.6 * sz + 3.0)
+        bx, bz = np.append(hx, sx), np.append(hz, sz)
+        br = np.append(br_h, rng.uniform(0.5, 1.5, ns))
+        # below eye height, or the nearest bush is the whole picture
+        bh = rng.uniform(0.5, 1.3, nh + ns) * (0.7 + 0.3 * s.understory)
+        clear = np.ones(bx.size, dtype=bool)
+        if s.path:
+            clear &= np.abs(bx - _path_x(s, bz)) > s.path + br * 0.35
+        bx, bz, br, bh = bx[clear], bz[clear], br[clear], bh[clear]
+        bry = bh / 1.35                         # a third of it sunk in the dirt
+        self.brush = _Kind(bx, bz, br, lo=0.0, hi=np.max(bh, initial=0.0),
+                           margin=0.6,
+                           cy=s.floor + _rise(s, bz) + bry * 0.35,
+                           inv=1.0 / br, yinv=1.0 / bry,
+                           scale=np.minimum(br, bry))
+
+
+@lru_cache(maxsize=8)
+def _stand_for(s: Scene) -> _Stand:
+    return _Stand(s)
+
+
+def _stand(s: Scene) -> _Stand:
+    # the sky changes by the minute and the trees do not
+    return _stand_for(replace(s, sky=0.0, day=0.0))
+
+
+def _cones(k, cell, px, py, pz):
+    """Distance to the nearest crown of kind `k`: a cone widest at its
+    skirt, with the underside rising toward the trunk — the droop of the
+    branch tips."""
+    def crown(j, f):
+        x, z, sk, A, B, C, D, E, F = f
+        hx = px[j, None] - x
+        hz = pz[j, None] - z
+        rr = np.sqrt(hx * hx + hz * hz)
+        yc = py[j, None] - sk
+        return np.maximum(rr * A + yc * B - C, D - rr * E - yc * F)
+    return k.nearest(cell, crown)
 
 
 def _air_fn(s: Scene, detail=False):
@@ -191,138 +464,119 @@ def _air_fn(s: Scene, detail=False):
             return a
 
     elif s.kind == "forest":
-        rng = np.random.default_rng(int(v * 1000) + 7)
-        n_t = max(1, s.trees)
-
-        def centreline(z):
-            """Where the path runs, as it wanders off ahead of you."""
-            return 1.1 * np.sin(z * 0.13 + v) + 0.5 * np.sin(z * 0.37 + v * 1.7)
-
-        # The ground goes up behind you. This is in the prose — nineteen
-        # hundred feet of ridge — but it is also what makes the far ground
-        # drawable at all: a ray aimed along a flat plane grazes it and the
-        # march creeps a few centimetres a step, so the ground ran out around
-        # ten metres and every tree behind that hung in the air. A slope is
-        # something a ray can actually hit.
-        def rise(z):
-            return s.rise * np.maximum(z - 4.0, 0.0)
-
+        st = _stand(s)
         # the tilt costs the plane SDF its unit gradient; keep it conservative
         rise_norm = math.sqrt(1.0 + s.rise * s.rise)
+        inv_cell = 1.0 / _CELL
 
-        # Trunks. A mild pull toward the distance so the stand closes up ahead
-        # of you, then two thick ones planted close on either side of the path
-        # so you are looking *into* the forest, not at a clearing edge.
-        u = rng.random(n_t).astype(F32)
-        tz = (2.4 + u ** 1.25 * _TREE_DEPTH).astype(F32)
-        tx = rng.uniform(-13.0, 13.0, n_t).astype(F32)
-        tr = (rng.uniform(0.11, 0.24, n_t) * (1.0 + tz / 22.0)).astype(F32)
-        tls = rng.uniform(-0.05, 0.05, n_t).astype(F32)      # per-trunk lean
-        crown_h = (s.canopy + rng.uniform(-1.4, 2.2, n_t)).astype(F32)
-        crown_r = rng.uniform(1.5, 3.2, n_t).astype(F32)
-        # how squashed each crown is. One shared value made the canopy a slab
-        # with a straight underside; varying it gives the layer a silhouette.
-        crown_sq = rng.uniform(1.15, 2.1, n_t).astype(F32)
+        def band(k, g):
+            """The points close enough in height to meet something of kind k.
 
-        if s.deadwood:
-            # Standing dead hemlock, not a colonnade: the tops snap off at
-            # every height, the ones still rooted lean, and a few are stumps.
-            tr = (tr * rng.uniform(0.5, 1.6, n_t)).astype(F32)
-            tls = rng.uniform(-0.16, 0.16, n_t).astype(F32)
-            crown_h = (crown_h * rng.uniform(0.3, 1.05, n_t)).astype(F32)
+            Anything skipped is more than a full stride away, which the march
+            never steps; the give is the hill rising under the thing's reach.
+            """
+            slop = _STRIDE + s.rise * (k.reach + _STRIDE)
+            return np.flatnonzero((g > k.lo - slop) & (g < k.hi + slop))
 
-        if n_t >= 5:
-            fr = np.argsort(tz)[:2]
-            tz[fr] = rng.uniform(3.2, 5.2, 2)
-            tr[fr] = rng.uniform(0.16, 0.24, 2)
-            tls[fr] = rng.uniform(-0.02, 0.02, 2)
-            side = np.array([-1.0, 1.0], dtype=F32)
-            tx[fr] = side * ((s.path or 1.4) + rng.uniform(1.2, 2.8, 2))
-            crown_h[fr] = s.canopy + rng.uniform(0.0, 1.4, 2)
-
-        top_h = crown_h + (2.8 if s.canopy else 6.0)
-        near = (np.abs(tx) < 0.7) & (tz < 2.8)       # not in the camera's lap
-        tx[near] = tx[near] + 2.6
-        if s.path:
-            cx = centreline(tz)
-            margin = s.path + tr + 0.35
-            off = tx - cx
-            hit = np.abs(off) < margin
-            tx[hit] = cx[hit] + np.where(off[hit] < 0, -1.0, 1.0) * margin[hit]
-        TX, TZ, TR, TLS = tx[None, :], tz[None, :], tr[None, :], tls[None, :]
-        # everything a tree carries sits on the ground where that tree stands
-        t_rise = rise(tz)
-        RISE_T = t_rise[None, :]
-        CY, CR, TOP = ((s.floor + t_rise + crown_h)[None, :], crown_r[None, :],
-                       (t_rise + top_h)[None, :])
-        CSQ = crown_sq[None, :]
-
-        n_b = 0 if s.deadwood else int(n_t * s.understory)
-        if n_b:
-            bz = (1.4 + rng.random(n_b).astype(F32) ** 1.3 * 21.0)
-            bx = rng.uniform(-12.0, 12.0, n_b).astype(F32)
-            br = rng.uniform(0.55, 1.5, n_b).astype(F32)
-            bh = rng.uniform(0.45, 1.25, n_b).astype(F32)
-            if s.path:                       # brush lines the path, not on it
-                cxb = centreline(bz)
-                mb = s.path + br * 0.45
-                ob = bx - cxb
-                hb = np.abs(ob) < mb
-                bx[hb] = cxb[hb] + np.where(ob[hb] < 0, -1.0, 1.0) * mb[hb]
-            BX, BZ = bx[None, :], bz[None, :]
-            BCY = (s.floor + rise(bz) + bh * 0.3)[None, :]
-            bry = bh * 0.6
-            BINV, BYINV = (1.0 / br)[None, :], (1.0 / bry)[None, :]
-            BSCALE = np.minimum(br, bry)[None, :]
-
-        def air(px, py, pz):
-            # height over the ground under this point, and — per tree — over
-            # the ground where that tree stands: a trunk is as tall as its
-            # own patch of hill, not as tall as the bottom of the slope
-            g = py - s.floor - rise(pz)
-            yb = (py - s.floor)[:, None] - RISE_T
-            disp = rock(px, py, pz) * 0.6
+        def parts(px, py, pz):
+            """Distances to the ground, the nearest trunk, the leaves and the
+            brush, kept apart — plus the step bound. 1e3 means none near."""
+            # The ground goes up ahead of you. This is in the prose — nineteen
+            # hundred feet of ridge — and it is also what makes the far ground
+            # drawable: a slope is something a ray can actually hit.
+            g = py - s.floor - _rise(s, pz)
+            # one noise sample does for the ground and for the leaves
+            n = _fbm(px * s.freq + v, py * s.freq, pz * s.freq, oct_n)
+            disp = (n - 0.5) * (s.rough * 0.6)
             if s.path:
-                c = centreline(pz)
-                onp = 1.0 / (1.0 + ((px - c) / s.path) ** 2 * 1.6)
+                onp = 1.0 / (1.0 + ((px - _path_x(s, pz)) / s.path) ** 2 * 1.6)
                 ground = g - disp * (1.0 - 0.7 * onp) - 0.10 * onp
             else:
                 ground = g - disp
             ground = ground / rise_norm
 
-            # trunks: a per-trunk lean, a taper up, a flare at the root
-            ybc = np.clip(yb, 0.0, 9.0)
-            hx = px[:, None] - TX - TLS * ybc
-            hz = pz[:, None] - TZ
-            trad = TR * (1.12 - 0.4 * np.clip(yb / 9.0, 0.0, 1.0)
-                         - 0.5 * np.clip(yb - 0.9, -0.9, 0.0))
-            trunk = np.sqrt(hx * hx + hz * hz) - trad
-            trunk = np.maximum(trunk, yb - TOP)
-            a = _smin(ground, trunk.min(axis=1), 0.25)
+            ci = np.clip(((px - _GX0) * inv_cell).astype(np.int32), 0, _NX - 1)
+            cj = np.clip(((pz - _GZ0) * inv_cell).astype(np.int32), 0, _NZ - 1)
+            ex = px - (_GX0 + ci.astype(F32) * _CELL)
+            ez = pz - (_GZ0 + cj.astype(F32) * _CELL)
+            wall = np.minimum(np.minimum(ex, _CELL - ex),
+                              np.minimum(ez, _CELL - ez))
+            # nothing this cell leaves out is nearer than this
+            wall = np.maximum(wall, 0.0) - 0.1
+            bound = wall + st.trunks.margin
+            cell = cj * _NX + ci
 
-            if s.canopy and not s.deadwood:
-                # crowns share the trunk offset — a flattened blob per tree,
-                # merged soft so the stand carries one ragged canopy
-                cdy = (py[:, None] - CY) * CSQ
-                crown = np.sqrt(hx * hx + cdy * cdy + hz * hz) - CR
-                # one cheap tap, and it only ever carves the crown back, never
-                # bulges it — a bulge hangs threads off the underside
-                crown = crown.min(axis=1) + np.clip(
-                    0.55 - _noise(px * 0.5 + v, py * 0.4, pz * 0.5),
-                    0.0, 0.55) * 2.9
-                a = _smin(a, crown, 0.40)
+            # trunks: a per-trunk lean, a taper up, a flare at the root, each
+            # standing on its own patch of hill
+            def bark(j, f):
+                x, z, base, lean, r, top = f
+                yb = py[j, None] - base
+                ybc = np.clip(yb, 0.0, 9.0)
+                hx = px[j, None] - x - lean * ybc
+                hz = pz[j, None] - z
+                trad = r * (1.12 - 0.045 * ybc
+                            + 0.5 * np.clip(0.9 - yb, 0.0, 0.9))
+                return np.maximum(np.sqrt(hx * hx + hz * hz) - trad, yb - top)
+            trunk = (st.trunks.nearest(cell, bark) if st.trunks.n
+                     else np.full_like(ground, 1.0e3))
 
-            if n_b:
-                qx = (px[:, None] - BX) * BINV
-                qy = (py[:, None] - BCY) * BYINV
-                qz = (pz[:, None] - BZ) * BINV
-                bush = (np.sqrt(qx * qx + qy * qy + qz * qz) - 1.0) * BSCALE
-                bush = bush.min(axis=1)
-                if detail:
-                    bush = bush - (
-                        _noise(px * 0.8 - v, py * 0.7, pz * 0.8) - 0.5) * 0.8
-                a = _smin(a, bush, 0.3)
-            return a
+            leaves = np.full_like(ground, 1.0e3)
+            if st.leafy:
+                for k in (st.crowns, st.saplings):
+                    i = band(k, g) if k.n else ()
+                    if len(i):
+                        leaves[i] = np.minimum(
+                            leaves[i], _cones(k, cell[i], px[i], py[i], pz[i]))
+                        bound[i] = np.minimum(bound[i], wall[i] + k.margin)
+                # the carve only ever cuts the crown back, never bulges it —
+                # a bulge hangs threads off the underside
+                leaves = leaves + np.clip(0.55 - n, 0.0, 0.55) * 1.6
+
+            bush = np.full_like(ground, 1.0e3)
+            k = st.brush
+            i = band(k, g) if k.n else ()
+            if len(i):
+                lx, ly, lz = px[i], py[i], pz[i]
+
+                def leaf(j, f):
+                    x, z, cy, inv, yinv, scale = f
+                    qx = (lx[j, None] - x) * inv
+                    qy = (ly[j, None] - cy) * yinv
+                    qz = (lz[j, None] - z) * inv
+                    return (np.sqrt(qx * qx + qy * qy + qz * qz) - 1.0) * scale
+                near = k.nearest(cell[i], leaf)
+                # leafy, not pillows: a finer carve-only tap, taken only
+                # where there is a bush close enough to carve
+                j = np.flatnonzero(near < 0.9)
+                if j.size:
+                    jx, jy, jz = lx[j], ly[j], lz[j]
+                    cut = np.clip(0.5 - _noise(jx * 1.4 - v, jy * 1.2, jz * 1.4),
+                                  0.0, 0.5) * 0.9
+                    if detail:
+                        cut = cut - (_noise(jx * 3.1 - v, jy * 2.7,
+                                            jz * 3.1) - 0.5) * 0.3
+                    near[j] = near[j] + cut
+                bush[i] = near
+                bound[i] = np.minimum(bound[i], wall[i] + k.margin)
+            return ground, trunk, leaves, bush, bound
+
+        def air(px, py, pz):
+            ground, trunk, leaves, bush, bound = parts(px, py, pz)
+            a = _smin(ground, trunk, 0.25)
+            i = np.flatnonzero(leaves < 2.0)
+            if i.size:
+                a[i] = _smin(a[i], leaves[i], 0.40)
+            i = np.flatnonzero(bush < 2.0)
+            if i.size:
+                a[i] = _smin(a[i], bush[i], 0.3)
+            return np.minimum(a, bound)
+
+        def material(px, py, pz):
+            """What a point on the surface is: 0 ground, 1 bark, 2 leaves,
+            3 brush."""
+            return np.argmin(np.stack(parts(px, py, pz)[:4]), axis=0)
+
+        air.material = material
 
     else:                                            # "void"
         def air(px, py, pz):
@@ -336,11 +590,16 @@ def _air_fn(s: Scene, detail=False):
 # --------------------------------------------------------------------------
 
 def _march(air, dx, dy, dz, steps=44, tmax=34.0, org=None,
-           factor=0.62, eps=0.012):
+           factor=0.62, eps=0.012, smax=1.7, cone=0.0):
     """Sphere-trace, compacting away rays that have already landed.
 
     Most rays in a cave hit rock within a few metres, so carrying the whole
     frame through all the steps would be almost entirely wasted work.
+
+    `cone` is the angle a pixel spans. With it, a ray lands once it is within
+    a fraction of a pixel of something at that range, and never takes a step
+    shorter than that — a ray skimming a hillside otherwise closes on it a
+    few centimetres at a time, long after the pixel has made up its mind.
     """
     k = dx.size
     zero = np.zeros(k, dtype=F32)
@@ -353,7 +612,7 @@ def _march(air, dx, dy, dz, steps=44, tmax=34.0, org=None,
     lox, loy, loz = ox, oy, oz
     for _ in range(steps):
         a = air(lox + ldx * lt, loy + ldy * lt, loz + ldz * lt)
-        landed = a < eps
+        landed = a < eps + cone * lt
         t[live] = lt
         hit[live] = landed
         keep = ~(landed | (lt >= tmax))
@@ -361,7 +620,9 @@ def _march(air, dx, dy, dz, steps=44, tmax=34.0, org=None,
             break
         live = live[keep]
         # the displacement breaks the Lipschitz bound, so step conservatively
-        lt = lt[keep] + np.clip(a[keep] * factor, 0.05, 1.7)
+        lt = lt[keep]
+        lt = lt + np.maximum(np.clip(a[keep] * factor, 0.05, smax),
+                             cone * 2.0 * lt)
         ldx, ldy, ldz = ldx[keep], ldy[keep], ldz[keep]
         lox, loy, loz = lox[keep], loy[keep], loz[keep]
     else:
@@ -414,7 +675,21 @@ def _lut(name):
 # --------------------------------------------------------------------------
 
 _FOREST_TAN = 1.6     # widest lens a forest gets, as a half-angle tangent
-_TREE_DEPTH = 30.0    # how far back the stand is planted
+
+
+def _ground_t(s, dy, dz):
+    """Where a ray from the eye meets the bare hillside, or inf if it never does."""
+    tg = np.full(dy.shape, np.inf, dtype=F32)
+    down = dy < -1e-4
+    flat = s.floor / np.where(down, dy, -1.0)
+    near = down & (dz * flat < 4.0)
+    tg[near] = flat[near]
+    den = dy - s.rise * dz
+    up = (den < -1e-4) & ~near
+    slope = (s.floor - 4.0 * s.rise) / np.where(up, den, -1.0)
+    far = up & (dz * slope >= 4.0)
+    tg[far] = slope[far]
+    return tg
 
 
 def _render(s: Scene, light: float, w: int, h: int) -> Image.Image:
@@ -445,19 +720,61 @@ def _render(s: Scene, light: float, w: int, h: int) -> Image.Image:
     surface = s.kind in ("forest", "hole")
     # Above ground the dominant surface is an exact plane, so the march can
     # stride out; underground the displaced tube needs small careful steps.
+    # A forest ray still threads past dozens of trunks to reach the far
+    # stand; nearly all land inside fifty steps, and the long tail is only
+    # the few aimed deep into the haze, so the high cap costs almost nothing.
     if s.kind == "forest":
-        mp = dict(steps=44, factor=0.92, eps=0.045)
+        mp = dict(steps=128, tmax=_TREE_DEPTH + 12.0, factor=0.92, eps=0.045,
+                  smax=_STRIDE, cone=0.35 * 2.0 * tan_x / w)
     elif surface:
         mp = dict(steps=30, factor=0.92, eps=0.03)
     else:
         mp = {}
     t, hit = _march(coarse, dx, dy, dz, **mp)
+    if s.kind == "forest":
+        # A ray that skims the hillside closes on it a few centimetres a step
+        # and can run out of steps before it lands. Left alone it was drawn
+        # as sky — a third of the ground was — and every trunk behind it
+        # stood on a strip of nothing. The hill is a known plane, so put
+        # those rays down on it.
+        tg = _ground_t(s, dy, dz)
+        miss = ~hit & np.isfinite(tg)
+        t = np.where(miss, tg, t).astype(F32)
+        hit = hit | miss
 
     hx, hy, hz = dx * t, dy * t, dz * t
     nx, ny, nz = _normal(fine, hx, hy, hz)
 
     grain = _fbm(hx * 2.4 + s.var, hy * 2.4, hz * 2.4, 3)
     albedo = 0.30 + 0.52 * grain
+    shade = 1.0
+    if s.kind == "forest":
+        # Contact shadow: how much of the air just off the surface is really
+        # open. Where a trunk goes into the ground, or brush sits on it, the
+        # answer is not much — and that dark seam is what plants the tree.
+        occ = 0.0
+        for gap, wgt in ((0.25, 0.5), (0.8, 0.5)):
+            d = coarse(hx + nx * gap, hy + ny * gap, hz + nz * gap)
+            occ = occ + wgt * np.clip(1.0 - d / gap, 0.0, 1.0)
+        # and under a closed canopy the whole floor of the wood is in shade:
+        # the near things go dark and the brightness is all in the distance
+        canopy = 0.5 if _stand(s).leafy else 1.0
+        shade = 1.0 - 0.85 * occ
+        # What each ray landed on. The woods are all one grey at dusk, so
+        # what separates them is what things are made of: needles and
+        # rhododendron leaf drink the light, bark less so, and a trail is
+        # packed pale dirt with a slot of open sky over it.
+        mat = coarse.material(hx, hy, hz)
+        tone = np.array([0.85, 0.75, 0.5, 0.55], dtype=F32)
+        if s.deadwood:
+            tone[1] = 1.45     # the bark is off them and the wood gone silver
+        albedo = albedo * tone[mat]
+        if s.path:
+            onp = 1.0 / (1.0 + ((hx - _path_x(s, hz)) / s.path) ** 2 * 1.6)
+            onp = onp * (mat == 0)
+            albedo = albedo * (1.0 + 1.3 * onp)
+            canopy = canopy + (1.0 - canopy) * 0.7 * onp
+        shade = shade * canopy
 
     if surface:
         # `sky` is the radiance of the sky itself; surfaces get a fraction of
@@ -466,7 +783,7 @@ def _render(s: Scene, light: float, w: int, h: int) -> Image.Image:
         sky_occ = np.clip((hy - (s.floor - 1.2)) / 1.5, 0.0, 1.0) ** 1.7
         sky_amt = (0.45 + 0.55 * ny) * sky_occ
         sun = np.clip(nx * -0.70 + ny * 0.34 + nz * -0.62, 0.0, 1.0)
-        lit = albedo * s.sky * (0.85 * sky_amt + 0.70 * sun ** 1.6 * sky_occ)
+        lit = albedo * s.sky * (0.85 * sky_amt + 0.70 * sun ** 1.6 * sky_occ) * shade
         # A headlamp switched on in daylight does not brighten the hillside;
         # it puts a pale coin on the ground in front of your boots. So the
         # day shortens the lamp's reach rather than dimming it.
@@ -524,7 +841,13 @@ def _render(s: Scene, light: float, w: int, h: int) -> Image.Image:
 
     # scatter: haze between the trees, or dust hanging in the beam
     fade = np.exp(-t / s.fog)
-    if surface:
+    if s.kind == "forest":
+        # Deep in a stand almost no ray reaches open sky, so the haze has to
+        # carry the evening: distant trunks go pale into the glow the way
+        # they do at dusk, and the near ones stand dark against it.
+        haze = s.sky * (1.45 + 0.55 * np.clip(dy * 5.0 + 0.3, 0.0, 1.0))
+        lit = lit * fade + (haze + light * 0.03) * (1.0 - fade)
+    elif surface:
         lit = lit * fade + (s.sky * 1.25 + light * 0.03) * (1.0 - fade)
     else:
         lit = lit + 0.075 * light * fade * np.clip((dz - 0.52) / 0.48, 0.0, 1.0)
@@ -555,18 +878,21 @@ _PASS = dict(kind="tube", bend=0.55, rough=0.48, bed=0.10)
 SCENES = {
 
 # ----- the park, at dusk ---------------------------------------------------
-"trailhead": Scene(kind="forest", trees=19, canopy=6.6, understory=0.9, path=1.7,
-                   rise=0.14, floor=-1.5, rough=0.30, freq=0.6, tilt=0.08,
-                   palette="dusk", sky=0.42, fog=48.0, var=21.0),
-"ridge_trail": Scene(kind="forest", trees=21, canopy=3.4, understory=1.2,
-                     path=1.35, rise=0.11, floor=-1.4, rough=0.42, freq=0.7,
-                     tilt=0.06, palette="dusk", sky=0.36, fog=40.0, var=22.0),
-"blowdown": Scene(kind="forest", trees=30, canopy=7.5, deadwood=True, path=2.4,
-                  rise=0.13, floor=-1.3, rough=0.34, freq=0.5, tilt=0.05,
-                  palette="dusk", sky=0.40, fog=42.0, var=23.0),
-"hollow": Scene(kind="forest", trees=19, canopy=5.2, understory=1.1, path=1.2,
-                rise=0.20, floor=-1.35, rough=0.55, freq=0.55, tilt=0.06,
-                palette="dusk", sky=0.22, fog=28.0, var=24.0),
+"trailhead": Scene(kind="forest", trees=360, canopy=6.6, understory=0.9,
+                   broadleaf=0.55, path=1.7, rise=0.14, floor=-1.5, rough=0.30,
+                   freq=0.6, tilt=0.02, palette="dusk", sky=0.42, fog=30.0,
+                   var=21.0),
+"ridge_trail": Scene(kind="forest", trees=420, canopy=4.6, understory=1.4,
+                     broadleaf=0.15, path=1.35, rise=0.11, floor=-1.4,
+                     rough=0.42, freq=0.7, tilt=0.02, palette="dusk", sky=0.36,
+                     fog=26.0, var=22.0),
+"blowdown": Scene(kind="forest", trees=320, deadwood=True, path=2.4, rise=0.13,
+                  floor=-1.3, rough=0.34, freq=0.5, tilt=0.05, palette="dusk",
+                  sky=0.40, fog=30.0, var=23.0),
+"hollow": Scene(kind="forest", trees=380, canopy=5.2, understory=1.1,
+                broadleaf=0.35, path=1.2, rise=0.20, floor=-1.35, rough=0.55,
+                freq=0.55, tilt=0.02, palette="dusk", sky=0.22, fog=20.0,
+                var=24.0),
 "basecamp": Scene(kind="hole", floor=-1.5, hole_r=3.0, hole_z=5.5,
                   depth_below=13.0, rough=0.45, trees=13, lights=1.5,
                   tilt=-0.34, palette="dusk", sky=0.24, fog=50.0,
