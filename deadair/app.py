@@ -1,6 +1,7 @@
 """DEAD AIR — Textual front end."""
 
 import argparse
+import importlib
 
 from textual import work
 from textual.app import App, ComposeResult
@@ -795,5 +796,25 @@ def parse_args(argv=None):
     return p.parse_args(argv)
 
 
+def probe_graphics():
+    """Ask the terminal what pictures it can take, before Textual starts.
+
+    textual-image decides once, when it is first imported, between kitty
+    graphics, sixel and half-blocks — by sending the terminal a query and
+    reading the answer off stdin. That only works before Textual is running:
+    after that, Textual's input thread takes the answer as keystrokes, the
+    probe times out, and every terminal, kitty included, gets half-blocks.
+    The cell size is asked for the same way, so settle it here too.
+    """
+    try:
+        importlib.import_module("textual_image.renderable")   # the probe
+        from textual_image._terminal import get_cell_size
+        get_cell_size()
+    except Exception:
+        pass              # no pictures is fine; the view falls back to text
+
+
 def main(argv=None):
-    DeadAir(seed=parse_args(argv).seed).run()
+    args = parse_args(argv)
+    probe_graphics()
+    DeadAir(seed=args.seed).run()
