@@ -117,6 +117,8 @@ class Scene:
     ledges: float = 0.0         # how far the beds stand out of a wall, in ledges
     neck: float = 0.0           # where a rift pinches to a slot, 0 = never
     scar: float = 0.0           # how far a jumble's roof steps up where it fell
+    fill: float = 0.0           # how far the floor's fill banks up the walls
+    gloom: float = 0.0          # how fast the light dies going into a way
     lights: float = 0.0         # how hard the camp's work lights burn
     lens: float = 0.0           # cap the lens at this half-angle tan, 0 = fill
     fog: float = 16.0           # scatter distance
@@ -1201,6 +1203,50 @@ def _parting(s, y, n):
     return deep * np.clip(1.0 - np.abs(f - k - 0.5) / 0.09, 0.0, 1.0)
 
 
+@lru_cache(maxsize=32)
+def _ways(s):
+    """A dome's or a hall's openings, worked out once: for each, the line
+    it runs along (sin, cos), its half-width and half-height, its sill, its
+    shape, where its line starts (x, z off the room's middle, and how far
+    along it reads there), where the cut into the rock starts, and how far
+    out the mouth is.
+
+    A way in `s.ways` is a bearing, a width, a height, how far up the wall
+    it starts (0, the floor, if not given), a shape where its proportions
+    do not say it ("keyhole", "bedding"), and a skew: how many
+    degrees off the bearing it runs once it is into the rock (0, straight
+    out, if not given)."""
+    fl = s.floor
+
+    def mouth(sx_, sz_, y):
+        """How far out along a bearing the room's own wall stands, at
+        height `y` over the floor: where a way leaves the room."""
+        if s.kind == "dome":
+            return s.wall * math.sqrt(max(0.05, 1.0 - (y / (s.ceil - fl)) ** 2))
+        return min(s.far / max(abs(sz_), 1e-3), s.wall / max(abs(sx_), 1e-3))
+
+    ways = []
+    for b, w, hh, *rest in s.ways:
+        sill = rest[0] if rest else 0.0
+        skew = rest[2] if len(rest) > 2 else 0.0
+        sx_, sz_ = math.sin(math.radians(b)), math.cos(math.radians(b))
+        m = mouth(sx_, sz_, sill + hh * 0.5)
+        # A skewed way is measured from where it leaves the room, along
+        # its own line; a straight one from the middle of the room, as it
+        # always was. Either way `along` reads `m` at the mouth.
+        ox = oz = 0.0
+        start = 0.5
+        if skew:
+            ox, oz = m * sx_, m * sz_
+            sx_, sz_ = (math.sin(math.radians(b + skew)),
+                        math.cos(math.radians(b + skew)))
+            start = m - 0.4
+        ways.append((sx_, sz_, w * 0.5, hh * 0.5, sill,
+                     rest[1] if len(rest) > 1 else "", ox, oz,
+                     m if skew else 0.0, start, m))
+    return tuple(ways)
+
+
 def _room_air(s, detail):
     """Signed distance, with a `.material`, for the furnished room kinds."""
     v = s.var
@@ -1229,12 +1275,7 @@ def _room_air(s, detail):
         return d, n
 
     if s.kind in ("dome", "hall"):
-        # openings in the walls: a bearing, a width, a height, how far up
-        # the wall the opening starts (0, the floor, if not given), and a
-        # shape where its proportions do not say it (only "keyhole")
-        ways = [(math.sin(math.radians(b)), math.cos(math.radians(b)), w * 0.5,
-                 hh * 0.5, rest[0] if rest else 0.0,
-                 rest[1] if len(rest) > 1 else "") for b, w, hh, *rest in s.ways]
+        ways = _ways(s)
         cz = s.far if s.kind == "dome" else 0.0
         # the pockets bats wore into a roost's ceiling, over centuries
         pockets = []
@@ -1305,10 +1346,16 @@ def _room_air(s, detail):
             xc = s.bend * np.sin(pz * 0.17 + v)
             q = np.sqrt(((px - xc) / s.rx) ** 2 + (py / s.ry) ** 2)
             w = (1.0 - q) * min(s.rx, s.ry) - d
+        if s.fill:
+            # Sediment does not stop at the wall in a crease: it banks up
+            # against it, and the wall comes down into it in a curve. Only
+            # the room's own walls — the ways are cut after, or it would
+            # silt a slot shut to the knee and leave the rest hanging.
+            w = _smin(w, floor_of(px, py, pz, n)[0], s.fill)
         if s.kind in ("dome", "hall"):
-            for sx_, sz_, hw, hh, sill, shape in ways:
-                along = px * sx_ + (pz - cz) * sz_
-                side = px * sz_ - (pz - cz) * sx_
+            for sx_, sz_, hw, hh, sill, shape, ox, oz, m0, start, m in ways:
+                along = (px - ox) * sx_ + (pz - cz - oz) * sz_ + m0
+                side = (px - ox) * sz_ - (pz - cz - oz) * sx_
                 mid = fl + sill + hh
                 if shape == "keyhole":
                     # A keyhole: the round tube water dissolved first, and
@@ -1319,7 +1366,7 @@ def _room_air(s, detail):
                     # Neither part is drawn true: the tube is out of round,
                     # the slot wanders as it goes down and widens by
                     # degrees toward the tube, and the edges are ragged.
-                    into = np.clip(along - s.far - 0.6, 0.0, 1.0)
+                    into = np.clip(along - m - 0.6, 0.0, 1.0)
                     top = fl + sill + 2.0 * hh - hw
                     up = np.clip((py - fl - sill) / (top - fl - sill), 0.0, 1.0)
                     q = (side - 0.13 * np.sin(along * 1.9 + v) * into
@@ -1330,14 +1377,39 @@ def _room_air(s, detail):
                     tube = r - np.sqrt(q * q + (py - top) ** 2)
                     slot = np.minimum(hw * (0.58 + 0.12 * up) - np.abs(q), top - py)
                     tun = -_smin(-tube, -slot, 0.06)
-                    w = np.maximum(w, np.where(along > 0.5, tun, -1.0) - 0.45 * d)
+                    w = np.maximum(w, np.where(along > start, tun, -1.0) - 0.45 * d)
+                    continue
+                if shape == "bedding":
+                    # A way along a bedding plane, and not a hole drilled in
+                    # the wall: the room's own floor running on in under the
+                    # bed above, wide and low. The roof is that bed's
+                    # underside, flat, dipping a little across the way,
+                    # stepped up where a slab of it came away (the phase is
+                    # the bearing's own, so no two step alike), and coming
+                    # down to the floor at both sides, so the way pinches
+                    # out into cracks. Past the mouth it turns back across
+                    # the way you are looking, so the beam finds its far
+                    # wall going round the bend and the dark is only where
+                    # it goes on out of sight — a way that runs straight
+                    # off from the lamp is a black oval.
+                    ph = v + 3.7 * sx_ + 1.3 * sz_
+                    into = np.maximum(along - m + 0.4, 0.0)
+                    q = side + math.copysign(0.75, sx_) * (np.sqrt(1.0 + into * into)
+                                                            - 1.0)
+                    edge = np.clip((hw - np.abs(q)) / (0.4 * hw), 0.0, 1.0)
+                    roof = (fl + sill + 2.0 * hh * edge * edge * (3.0 - 2.0 * edge)
+                            - 0.3 * hh * q / hw
+                            + 0.09 * np.clip(3.0 * np.sin(q * 2.1 + ph) - 1.2, 0.0, 1.0)
+                            - 0.07 * into)
+                    tun = np.minimum(roof - py, hw - np.abs(q)) * 0.4
+                    w = np.maximum(w, np.where(along > start, tun, -1.0) - 0.4 * d)
                     continue
                 if hh < 0.5 * hw:
                     # a bedding-plane crawl leaves as a slot between two
                     # beds: flat above and below, thinning out to the sides
                     thin = hh * (1.0 - 0.6 * np.clip(side / hw, -1.0, 1.0) ** 2)
                     tun = _smin(thin - np.abs(py - mid), hw - np.abs(side), 0.2)
-                    w = np.maximum(w, np.where(along > 0.5, tun, -1.0) - 0.3 * d)
+                    w = np.maximum(w, np.where(along > start, tun, -1.0) - 0.3 * d)
                     continue
                 if hh > 2.5 * hw:
                     # a canyon, cut down by water: sides near parallel, a
@@ -1345,10 +1417,10 @@ def _room_air(s, detail):
                     up = np.clip((py - fl - sill) / (2.0 * hh), 0.0, 1.0)
                     tun = _smin(hw * (1.25 - 0.5 * up) - np.abs(side),
                                 hh - np.abs(py - mid), 0.3)
-                    w = np.maximum(w, np.where(along > 0.5, tun, -1.0) - 0.9 * d)
+                    w = np.maximum(w, np.where(along > start, tun, -1.0) - 0.9 * d)
                     continue
                 tun = (1.0 - np.sqrt((side / hw) ** 2 + ((py - mid) / hh) ** 2)) * hw
-                w = np.maximum(w, np.where(along > 0.5, tun, -1.0) - 0.5 * d)
+                w = np.maximum(w, np.where(along > start, tun, -1.0) - 0.5 * d)
             for x, y, z, r in pockets:
                 w = np.maximum(w, r - np.sqrt((px - x) ** 2 + (py - y) ** 2
                                               + (pz - z) ** 2) - 0.3 * d)
@@ -1421,6 +1493,18 @@ def _paint(s, x, y, z, nx, ny, nz):
     """What has been put on the rock: soot, lamp-black, footprints, a
     crowd of crickets. Returns a factor for each hit's albedo."""
     out = np.ones(x.shape, dtype=F32)
+    if s.gloom:
+        # Inside a way the lamp only gets in at a slant, off the lips of
+        # it, and nothing in there sends much back: the rock goes dark by
+        # degrees as the way goes in, which is what tells you it is a way
+        # and not a mark on the wall.
+        cz = s.far if s.kind == "dome" else 0.0
+        for sx_, sz_, hw, hh, sill, _, ox, oz, m0, _, m in _ways(s):
+            along = (x - ox) * sx_ + (z - cz - oz) * sz_ + m0
+            side = (x - ox) * sz_ - (z - cz - oz) * sx_
+            near = (np.abs(side) < hw + 0.3) & (y < s.floor + sill + 2.0 * hh + 0.3)
+            deep = np.clip(along - m + 0.1, 0.0, None) * near
+            out = out * np.exp(-s.gloom * deep)
     if s.ledges:
         # the partings between the beds are shale, darker than the stone,
         # and the fainter the ledges the fainter the partings
@@ -2201,7 +2285,7 @@ def _render(s: Scene, light: float, w: int, h: int) -> Image.Image:
         # a rope is one colour its whole length; the rock's mottle along
         # a line that thin read as the stripes on a surveyor's pole
         albedo = np.where(mat == _M_ROPE, 0.56, albedo) * _TONE[mat]
-        if s.marks or s.ledges:
+        if s.marks or s.ledges or s.gloom:
             albedo = albedo * _paint(s, hx, hy, hz, nx, ny, nz)
     if s.kind == "forest":
         # Contact shadow: how much of the air just off the surface is really
@@ -2526,17 +2610,117 @@ def _cairn(x, z, fl, k=1.35):
             stone(_M_PALE, 0.0, 0.46, 0.0, (0.08, 0.05, 0.07), 0.04, yaw=10))
 
 
-def _cache(x, z, fl):
-    """A red forty-litre pack, set down against a boulder, closed and
-    upright — the way you leave a pack you are coming straight back to."""
-    return ((_box(_M_ROCK, (x + 0.15, fl + 0.48, z + 0.62), (0.8, 0.52, 0.6),
-                  0.32, yaw=25, roll=6),),
-            (_box(_M_RED, (x, fl + 0.33, z), (0.19, 0.32, 0.13), 0.09, yaw=-8,
-                  pitch=-7),
-             _box(_M_RED, (x, fl + 0.68, z + 0.03), (0.2, 0.06, 0.14), 0.05,
-                  yaw=-8, pitch=-7),
-             _cap(_M_IRON, (x - 0.12, fl + 0.66, z - 0.12), (x - 0.12, fl + 0.3,
-                                                             z - 0.15), 0.012)))
+def _cache(x, z, fl, seed, yaw, pitch=3.0, roll=-4.0, twist=0.0):
+    """A red forty-litre pack, set down upright against a block that came
+    down out of the breakdown, closed — the way you leave a pack you are
+    coming straight back to — and what broke off the block round its foot.
+
+    The block is whatever `seed` breaks it into, turned `yaw`; the pack
+    stands at `x`, `z` with its back to the face of it there, leaning on
+    that face at the face's own angle."""
+    block = _Rock((0.85, 0.42, 0.6), seed, yaw=yaw, pitch=pitch, roll=roll, chips=4)
+    block.put(x + 0.15, fl - block.local[:, 1].min() - 0.07, z + 0.9)
+    # the face the pack leans on: where a line from in front, at the height
+    # its back rests, first goes into the block
+    p0 = np.array([x, fl + 0.42, z - 2.0])
+    offs = block.offsets + block.normals @ block.at
+    facing = block.normals[:, 2] < -1e-6
+    t = (offs[facing] - block.normals[facing] @ p0) / block.normals[facing][:, 2]
+    k = int(np.argmax(t))
+    hit, n = p0 + np.array([0.0, 0.0, t[k]]), block.normals[facing][k]
+    turn = math.degrees(math.atan2(-n[0], -n[2])) + twist
+    lean = float(np.clip(math.degrees(math.asin(n[1])), 9.0, 15.0))
+    R = _rot(turn, lean)
+    # its own frame: x across it, y up from the ground, +z the back panel
+    back = np.array([0.0, 0.4, 0.12])
+    base = hit - R @ back
+    base[1] = fl - 0.01
+
+    def at(p):
+        return tuple(float(q) for q in base + R @ np.array(p, float))
+
+    def bag(c, half, r):
+        return _box(_M_RED, at(c), half, r, yaw=turn, pitch=lean)
+
+    def strap(a, b, r=0.01, mat=_M_TYRE):
+        return _cap(mat, at(a), at(b), r)
+
+    def flat(a, b, r=0.009, mat=_M_TYRE):
+        """A strap's tail lying on the floor, whatever the pack leans."""
+        a, b = at(a), at(b)
+        return _cap(mat, (a[0], fl + r, a[2]), (b[0], fl + r, b[2]), r)
+
+    pack = [bag((0.0, 0.27, 0.0), (0.16, 0.26, 0.115), 0.075),
+            # the lid, stuffed round and hanging over the front a little
+            bag((0.0, 0.575, -0.015), (0.165, 0.06, 0.13), 0.05),
+            bag((0.0, 0.22, -0.123), (0.12, 0.13, 0.03), 0.03)]
+    for sx in (-1.0, 1.0):
+        pack += [# a stretch pocket low on each side, and the straps that
+                 # cinch the load
+                 bag((0.162 * sx, 0.13, 0.0), (0.03, 0.1, 0.085), 0.03),
+                 strap((0.075 * sx, 0.6, -0.148), (0.075 * sx, 0.33, -0.162), 0.014),
+                 strap((0.166 * sx, 0.3, -0.1), (0.166 * sx, 0.31, 0.1), 0.012),
+                 strap((0.162 * sx, 0.45, -0.095), (0.162 * sx, 0.46, 0.095), 0.012),
+                 # the shoulder straps, against the rock
+                 strap((0.07 * sx, 0.52, 0.12), (0.13 * sx, 0.32, 0.15), 0.022),
+                 strap((0.13 * sx, 0.32, 0.15), (0.15 * sx, 0.12, 0.125), 0.022),
+                 # the hip belt, undone, its wings fallen forward and the
+                 # webbing lying out on the floor off the ends of them
+                 strap((0.13 * sx, 0.08, 0.1), (0.22 * sx, 0.05, -0.01), 0.035),
+                 flat((0.25 * sx, 0.0, -0.03), (0.3 * sx, 0.0, -0.2))]
+
+    # what broke off the block when it came down, lying round the foot of it
+    rng = np.random.default_rng(seed + 1)
+    feet = block.corners()
+    feet = feet[np.argsort(feet[:, 1])[:5]]
+    spall = []
+    for fx, _, fz in feet:
+        a, c = rng.uniform(0.07, 0.22, 2)
+        chip = _Rock((a, max(a, c) * rng.uniform(0.4, 0.8), c),
+                     int(rng.integers(1 << 30)), yaw=rng.uniform(0.0, 180.0),
+                     pitch=rng.normal(0.0, 12.0), roll=rng.normal(0.0, 12.0),
+                     chips=2)
+        cx, cz = fx + rng.normal(0.0, 0.25), fz + rng.normal(0.0, 0.25) - 0.1
+        if math.hypot(cx - base[0], cz - base[2]) < 0.45:
+            continue
+        spall.append(chip.put(cx, fl - chip.local[:, 1].min() - 0.02, cz).data())
+    return (block.data(),), tuple(pack), tuple(spall)
+
+
+def _strew(seed, fl, cz, wall, count, keep):
+    """Spall across a chamber's floor: what has come off the roof one piece
+    at a time since the room was a room, most of it small, the bigger
+    pieces out toward the walls where nothing has kicked them aside. Kept
+    `keep` = ((x, z, radius), ...) clear — where you are, what is set down."""
+    rng = np.random.default_rng(seed)
+    lots = {}
+    for _ in range(count * 30):
+        if sum(map(len, lots.values())) == count:
+            break
+        e = math.sqrt(rng.uniform(0.02, 1.0)) * 0.86
+        a = rng.uniform(0.0, 2.0 * math.pi)
+        x, z = wall * e * math.sin(a), cz + wall * e * math.cos(a)
+        if any(math.hypot(x - kx, z - kz) < kr for kx, kz, kr in keep):
+            continue
+        big = 0.05 + 0.3 * rng.random() ** 2.5 * (0.4 + e)
+        long = rng.uniform(1.0, 1.8)
+        half = (big * long, big * rng.uniform(0.25, 0.55), big / long)
+        rock = _Rock(half, int(rng.integers(1 << 30)), yaw=rng.uniform(0.0, 180.0),
+                     pitch=rng.normal(0.0, 12.0), roll=rng.normal(0.0, 12.0),
+                     chips=3 if big < 0.15 else 5)
+        rock.put(x, fl - rock.local[:, 1].min() - half[1] * rng.uniform(0.1, 0.4), z)
+        lots.setdefault((int(x // 1.6), int(z // 1.6)), []).append(rock.data())
+    return tuple(tuple(lot) for _, lot in sorted(lots.items()))
+
+
+def _lips(bearing, wall, cz, fl, tall, high, half):
+    """Fresh scuffing on both lips of a slot out of a dome, `high` over
+    the floor: where the rock is rubbed pale by a body going through."""
+    sx, sz = math.sin(math.radians(bearing)), math.cos(math.radians(bearing))
+    out = wall * math.sqrt(1.0 - (high / tall) ** 2)
+    return tuple(("scuff", out * sx + side * half * sz, fl + high,
+                  cz + out * sz - side * half * sx, 0.3, 0.9)
+                 for side in (-1.0, 1.0))
 
 
 def _rope(x, z, top, fl):
@@ -2889,6 +3073,13 @@ _CHOKE = dict(kind="jumble", floor=-1.2, ceil=1.2, wall=1.5, far=15.0,
               glow=((0.0, -1.2 + 0.84 * 14.4 + 1.0, 14.4, 0.6, _M_DAWN),),
               reach=7.0, fog=10.0, var=19.0)
 
+
+def _cache_props():
+    """Her pack against its block, and the spall across the junction."""
+    return (_cache(-0.25, 1.75, -1.0, 37, 20.0, pitch=7.0, roll=-9.0, twist=-22.0)
+            + _strew(111, -1.0, 2.0, 3.2, 22, ((0.0, 0.0, 1.7), (-0.1, 2.5, 1.2))))
+
+
 _CRAWL = dict(kind="tube", bend=0.14, rough=0.22, bed=0.05, freq=0.8)
 _PASS = dict(kind="tube", bend=0.55, rough=0.48, bed=0.10)
 
@@ -2995,11 +3186,19 @@ SCENES = {
                 ground="silt", murk=0.32, palette="sallow",
                 rough=0.3, freq=0.7, bed=0.08, tilt=-0.05,
                 reach=4.2, fog=8.0, var=10.0),
-"pack": Scene(kind="dome", floor=-1.45, wall=3.4, ceil=1.9, far=2.2,
-              ways=((0.0, 0.55, 1.3), (-55.0, 1.5, 1.4), (95.0, 1.3, 1.0),
-                    (180.0, 1.2, 1.4)),
-              rough=0.7, freq=0.4, bed=0.1, tilt=-0.08,
-              props=_cache(0.3, 2.0, -1.45),
+# Down on one knee by her pack, in the middle of the junction, where it
+# stands against a block come out of the breakdown behind you. The sallow
+# air's way goes off low along a bed to the left; the slot is in the far
+# wall off to the right, running into the rock at an angle, so it stays a
+# hole and never a figure standing there, and rubbed pale on both lips at
+# hip height.
+"pack": Scene(kind="dome", floor=-1.0, wall=3.2, ceil=1.8, far=2.0,
+              ways=((-72.0, 2.4, 0.8, 0.0, "bedding"),
+                    (55.0, 0.46, 1.6, 0.0, "keyhole", 40.0)),
+              ground="silt", fill=0.6, gloom=1.1, ledges=0.03, bed=0.08,
+              rough=0.6, freq=0.45, lens=1.6, tilt=-0.33,
+              props=_Later(_cache_props),
+              marks=_lips(55.0, 3.2, 2.0, -1.0, 2.8, 0.9, 0.17),
               reach=8.5, fog=13.0, var=11.0),
 # The far wall of the cache, bedded limestone, and the slot in it: a round
 # tube shoulder-wide at the top and a hip-wide cut under it, snaking off

@@ -231,9 +231,9 @@ Notes for anyone changing it:
   the Drop, the Keyhole, the Sallow, the Long Room, the Deep), a rift
   (Stream, Carbide Ladder), a mine drift (the Old Workings), a jumble of fallen
   blocks (Breakdown, Sump, Choke, Grip), or flooded (Under) — dressed with
-  what its prose puts in it. `props` are clusters of rotated boxes and
-  capsules (a cairn, a pack and its boulder, the rope, rungs, timber sets,
-  her suit and helmet, Wren herself); `marks` are paint on the rock (soot,
+  what its prose puts in it. `props` are clusters of rotated boxes,
+  capsules and broken rock (a cairn, a pack against its fallen block, the
+  rope, rungs, timber sets, her suit and helmet, Wren herself); `marks` are paint on the rock (soot,
   lamp-black lettering, footprints, crickets, a flood line); `ground` is the
   floor (cobble, broken plate, rubble, guano, silt, dust, bone). A few rooms carry
   more: `glow` for a light of their own (her helmet lamp, the gray at the
@@ -271,10 +271,10 @@ Notes for anyone changing it:
 - The Bell is drawn to be read in one look: you have climbed down out of
   the Letterbox and turned round, so all three ways the prose offers are in
   frame. A way's shape follows what made it: `ways` entries are (bearing,
-  width, height, sill), and one much wider than tall is a bedding-plane
-  slot (flat, thinning to the sides), one much taller than wide a canyon
-  (near-parallel walls, wider at the stream), anything else the old round
-  tube. `sill` lifts a way up the wall (the Letterbox is knee-high) or,
+  width, height, sill, shape, skew), and one much wider than tall is a
+  bedding-plane slot (flat, thinning to the sides), one much taller than
+  wide a canyon (near-parallel walls, wider at the stream), anything else
+  the old round tube unless `shape` names one (see the Cache). `sill` lifts a way up the wall (the Letterbox is knee-high) or,
   negative, sinks it into the floor, which cuts it off — an arch or a
   canyon standing on the floor instead of an oval hole in the wall. `bell`
   draws a dome's walls in above head height. The cobble floor is loose
@@ -312,6 +312,23 @@ Notes for anyone changing it:
   fainter), a `joint` mark — the crack the slot opened along, running on
   up the rock above it — and `scuff` marks, rubbed pale on both lips at
   hip height.
+- Wren's Cache is seen down on one knee by her pack, so a 40-litre pack
+  is whole and in the middle of the frame even at 6:1, with the tighter
+  room lens (`lens`). The pack is built as one (`_cache`): body,
+  stuffed lid over the front, front and side pockets, lid and compression
+  straps, the shoulder straps against the rock, the hip belt undone with
+  its webbing lying on the floor — leaning at the angle of the face it is
+  set against, found on a fallen `_Rock` block, not a box. `_strew`
+  scatters spall across the floor, bigger toward the walls, and the silt
+  banks up the walls (`fill`) instead of meeting them in a crease. The
+  ways out are not holes drilled in a wall: the Sallow's is `"bedding"` —
+  the floor running on in under the flat underside of a bed, dipping,
+  stepped where a slab came away, pinching out at the sides — and it
+  turns back across your line of sight past the mouth, so the beam finds
+  a far wall instead of a black oval. The slot is the Keyhole's
+  own shape, `skew`ed so it runs into the rock at an angle, and `gloom`
+  darkens rock by degrees going into any way, which is what makes an
+  oblique opening read as an opening rather than an outline.
 - The palettes are luminance ramps, and a very few materials keep their own
   colour through them (`_TINT` in `art.py`) — the ones the story names by
   it: Wren's orange flagging, her red pack, the blue dive line, the gray at
