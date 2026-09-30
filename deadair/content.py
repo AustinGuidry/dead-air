@@ -13,6 +13,10 @@ As the battery dies you literally stop being told what is there.
 
 from dataclasses import dataclass, field
 
+# Splits a long passage into pages; the reader presses Continue between them.
+# Endings use it, and so can a speech that runs long.
+PAGE = "\f"
+
 
 @dataclass
 class Exit:
@@ -46,6 +50,7 @@ class Clue:
     mins: int
     text: str
     flag: str = ""
+    scene: str = ""             # a picture of its own while you look at it
 
 
 @dataclass
@@ -725,7 +730,9 @@ ROOMS = {
 
 # ----- the choke -------------------------------------------------------------
 # Only reached with the lens and without `bolted` — otherwise `climb_out`
-# resolves straight to RESCUE_HARD and this room never gets entered.
+# resolves straight to RESCUE_HARD and this room never gets entered. Using the
+# lens here is the player's call: taking it out goes to the point; leaving it
+# in your pocket and climbing is RESCUE_HARD, the same as never having had it.
 
 "choke": Room(
     id="choke", name="—", depth=-9, mx=5, my=9, tags={"quiet", "gray"},
@@ -738,7 +745,24 @@ ROOMS = {
         "of you cannot close any faster.\n\n"
         "Where the choke opens there is a hand's width of gray. Not "
         "lamplight. The mountain's own, leaking in for a hundred years, "
-        "thin and cold, the color of nothing.\n\n"
+        "thin and cold, the color of nothing."
+    ),
+    exits=[
+        Exit(label="Take the lens out.", to="point", mins=1),
+        Exit(label="Leave the lens. Climb.", to="resolved", mins=2,
+             hazard="rescue_run"),
+    ],
+),
+
+# ----- the point -------------------------------------------------------------
+# The lens in the gray, and the first time the thing answers. The same place
+# as the choke a moment later; quiet — no ambience rolls here.
+
+"point": Room(
+    id="point", name="—", depth=-9, mx=5, my=9,
+    tags={"quiet", "offmap", "gray"},
+    look=("", "", ""),
+    first=(
         "You take the lens out again. You have been carrying it since a "
         "folding table under the work lights, and not long ago, back where "
         "it was sleeping, it bought you nothing but a few feet of room. "
@@ -993,7 +1017,7 @@ PARK = {
              "you'd only find it if you were looking at the actual physical "
              "survey of this place — or some local walked you down the old path. "
              "There's eleven pages on it from the '73 survey sitting in a drawer in "
-             "Blakely and that's the only file on it. Only reason I can even "
+             "Blakely and that's the only file on it." + PAGE + "\"Only reason I can even "
              "stamp a permit for it at all is there's a standing clearance "
              "from the district's cave specialist — some list of names of "
              "experienced cavers he keeps that never crosses my desk. I just "
@@ -1252,7 +1276,7 @@ PARK = {
              "Under it, in a different hand and a shallower cut, somebody "
              "scratched a second date the way you would scratch it with a "
              "nail, in a hurry, not meaning it to last: 1911.",
-             "clue:1911"),
+             "clue:1911", scene="hollow_chimney"),
         Clue("The springhouse", 3,
              "The water still comes out from the earth cold enough to hurt. "
              "You put two fingers in it out of habit.\n\n"
@@ -1265,7 +1289,7 @@ PARK = {
              "where you build. You close the hole it drains into when you have stopped "
              "caring where the water goes and started caring what comes up "
              "out of it. Futile. Water will always find its way back down.",
-             "clue:spring"),
+             "clue:spring", scene="hollow_spring"),
         Clue("The cemetery", 4,
              "Thirteen stones on the rise above the house, field-cut, most of "
              "them illegible. The ones you can read are from the 1890s.\n\n"
@@ -1277,7 +1301,7 @@ PARK = {
              "this one, which faces downhill, toward the sink. There is no "
              "name on it. There is a date, 1911, and above the date somebody "
              "has cut, very carefully, the word HERE.",
-             "clue:here"),
+             "clue:here", scene="hollow_graves"),
     ],
     exits=[
         Exit(label="Down the last of it to the sink", to="basecamp", mins=9,

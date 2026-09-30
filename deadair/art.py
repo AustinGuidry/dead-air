@@ -117,6 +117,8 @@ class Scene:
     ledges: float = 0.0         # how far the beds stand out of a wall, in ledges
     neck: float = 0.0           # where a rift pinches to a slot, 0 = never
     scar: float = 0.0           # how far a jumble's roof steps up where it fell
+    clearing: tuple = ()        # in a forest: (x, z, radius) the woods keep off
+    exposure: float = 0.0       # eyes opened up to the dark, 0 = as it is
     fill: float = 0.0           # how far the floor's fill banks up the walls
     gloom: float = 0.0          # how fast the light dies going into a way
     lights: float = 0.0         # how hard the camp's work lights burn
@@ -325,12 +327,14 @@ _BODIES = {
  _M_CLOTH, _M_SUIT, _M_METAL, _M_PAPER, _M_LAMP,
  _M_SILT, _M_PACK, _M_BUG, _M_FLAG,
  _M_COBBLE, _M_GUANO, _M_BONE, _M_DUST, _M_IRON, _M_TIMBER, _M_ROPE,
- _M_TAG, _M_GLINT, _M_RED, _M_BLUE, _M_DAWN, _M_PALE, _M_WATER) = range(30)
+ _M_TAG, _M_GLINT, _M_RED, _M_BLUE, _M_DAWN, _M_PALE, _M_WATER,
+ _M_DRESSED, _M_MORTAR, _M_FIELD) = range(33)
 _TONE = np.array([0.85, 0.75, 0.50, 0.55, 1.05, 0.80, 0.30,
                   0.45, 1.15, 0.65, 1.60, 1.00,
                   1.00, 0.45, 1.25, 1.30,
                   0.95, 0.16, 1.55, 1.30, 0.42, 0.70, 1.60,
-                  2.00, 1.00, 1.00, 1.00, 1.00, 1.90, 0.40], dtype=F32)
+                  2.00, 1.00, 1.00, 1.00, 1.00, 1.90, 0.40,
+                  1.35, 1.25, 1.45], dtype=F32)
 # The palettes are luminance ramps; a very few things keep their own colour
 # through them — the ones the story names by it. Wren's flagging, "Wren's
 # color"; her red pack; the blue dive line; the gray at the top of the
@@ -696,8 +700,11 @@ class _Stand:
             tz = np.append(tz, rz)
             tr = np.append(tr, rng.uniform(0.2, 0.36, 9))
 
-        # nothing on the path, and nothing standing in the camera's lap
+        # nothing on the path, and nothing standing in the camera's lap —
+        # nor where people once cleared the ground and kept it clear
         clear = ~((tz < 2.2) & (np.abs(tx) < 1.4))
+        for kx, kz, kr in s.clearing:
+            clear &= np.hypot(tx - kx, tz - kz) > kr + tr
         if s.path:
             clear &= np.abs(tx - _path_x(s, tz)) > s.path + tr + 0.5
         if s.camp:
@@ -784,6 +791,8 @@ class _Stand:
         # below eye height, or the nearest bush is the whole picture
         bh = rng.uniform(0.5, 1.3, nh + ns) * (0.7 + 0.3 * s.understory)
         clear = np.ones(bx.size, dtype=bool)
+        for kx, kz, kr in s.clearing:
+            clear &= np.hypot(bx - kx, bz - kz) > kr + br * 0.5
         if s.path:
             clear &= np.abs(bx - _path_x(s, bz)) > s.path + br * 0.35
         if s.camp:
@@ -1548,13 +1557,17 @@ def _paint(s, x, y, z, nx, ny, nz):
                 out[i] = out[i] * (1.0 - k * np.clip(1.2 - dist - 0.35 * feather,
                                                      0.0, 1.0))
         elif kind == "text":
-            # lettering in lamp-black on a wall facing `yaw`
-            words, cx, cy, cz, tall, yaw, k = a
+            # lettering in lamp-black on a wall facing `yaw` — or cut into
+            # a stone, which reads the same: the cut holds the shadow.
+            # `deep` is how far off the face it takes, so what is cut in
+            # the front of a thin stone does not come through its back.
+            words, cx, cy, cz, tall, yaw, k, *deep = a
             c, sn = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
             u = (x - cx) * c - (z - cz) * sn        # across the wall
             w = (y - cy)                             # up it
             off = np.abs((x - cx) * sn + (z - cz) * c)
-            ink = _letters(words, u / tall, w / tall) * (off < 0.5)
+            ink = _letters(words, u / tall, w / tall) * (off < (deep[0] if deep
+                                                                else 0.5))
             out = out * (1.0 - k * ink)
         elif kind == "prints":
             # a line of boot prints pressed into silt, one after the other
@@ -1578,6 +1591,35 @@ def _paint(s, x, y, z, nx, ny, nz):
             line = (np.clip(1.0 - np.abs(off) / 0.014, 0.0, 1.0)
                     * (y > y0) * (y < y1) * (np.abs(z - cz) < 0.5) * (np.abs(nz) > 0.4))
             out = out * (1.0 - k * line)
+        elif kind == "stones":
+            # Laid fieldstone, on the faces of whatever stands in the box
+            # given: courses a hand or two high that waver, each stone its
+            # own length, the joints between them dark where it was laid
+            # dry and pale where somebody mortared it (`k` below zero).
+            x0, x1, y0, y1, z0, z1, k = a
+            i = np.flatnonzero((x > x0) & (x < x1) & (y > y0) & (y < y1)
+                               & (z > z0) & (z < z1) & (np.abs(ny) < 0.75))
+            if i.size:
+                xi, yi, zi = x[i], y[i], z[i]
+                along = np.where(np.abs(nx[i]) > np.abs(nz[i]), zi, xi)
+                # the beds wander, and no two courses are the same height
+                f = ((yi - y0) / 0.2
+                     + 0.5 * (_noise(along * 1.3, yi * 0.7, 3.0) - 0.5)
+                     + 0.35 * np.sin(along * 2.3 + yi))
+                row = np.floor(f).astype(np.int32)
+                tall = 0.13 + 0.14 * _NTEX[row & _MASK, 11, 4]
+                horiz = np.clip((0.5 - np.abs(f - row - 0.5)) * tall / 0.024,
+                                0.0, 1.0)
+                # stones from a fist to a forearm long, the ends not square
+                long = 0.16 + 0.42 * _NTEX[row & _MASK, 3, 7] ** 1.5
+                g = ((along + 0.12 * (f - row) * (_NTEX[row & _MASK, 5, 1] - 0.5)
+                      + _NTEX[row & _MASK, 9, 2] * long) / long)
+                g = g + 0.25 * (_noise(along * 3.1, yi * 3.1, 7.0) - 0.5)
+                vert = np.clip(np.abs(g - np.round(g)) * long / 0.022, 0.0, 1.0)
+                joint = 1.0 - np.minimum(horiz, vert)
+                # each stone a shade of its own
+                own = _NTEX[row & _MASK, np.floor(g).astype(np.int32) & _MASK, 5]
+                out[i] = out[i] * (1.0 - k * joint) * (0.7 + 0.55 * own)
         elif kind == "scuff":
             # fresh scuffing: rock rubbed pale by a body going through, in
             # streaks the way it went, fading out from the worst of it
@@ -1599,8 +1641,10 @@ def _paint(s, x, y, z, nx, ny, nz):
     return out
 
 
-# a 3x5 hand for lamp-black lettering: enough for a date
+# a 3x5 hand for lamp-black lettering: enough for a date, and for the one
+# word cut on the 1911 stone
 _GLYPHS = {
+    "E": "111100110100111", "H": "101101111101101", "R": "110101110101101",
     "0": "111101101101111", "1": "010110010010111", "2": "111001111100111",
     "3": "111001111001111", "4": "101101111001001", "5": "111100111001111",
     "6": "111100111101111", "7": "111001010010010", "8": "111101111101111",
@@ -1687,6 +1731,7 @@ def _air_fn(s: Scene, detail=False):
 
     elif s.kind == "forest":
         st = _stand(s)
+        props = _props_for(s.props)
         # the tilt costs the plane SDF its unit gradient, and so does the
         # soil slumping into the sink; keep it conservative
         rise_norm = math.sqrt(1.0 + s.rise * s.rise + (0.5 if s.camp else 0.0))
@@ -1815,6 +1860,14 @@ def _air_fn(s: Scene, detail=False):
                                                     codes)
                 for k, i in seen:
                     bound[i] = np.minimum(bound[i], wall[i] + k.margin)
+            if props:
+                # what is set down here — the stones of a place people
+                # lived — is a few clusters, each measured whole only near
+                got = props.distance(px, py, pz, codes, detail)
+                pd, pw = got if codes else (got, None)
+                if codes:
+                    what = np.where(pd < gear, pw, what)
+                gear = np.minimum(gear, pd)
             if codes:
                 return ground, trunk, leaves, bush, gear, bound, what
             return ground, trunk, leaves, bush, gear, bound
@@ -2265,10 +2318,12 @@ def _render(s: Scene, light: float, w: int, h: int) -> Image.Image:
         t = np.where(miss, tg, t).astype(F32)
         hit = hit | miss
 
-    if s.kind in lamp_led:
+    if s.kind in lamp_led or (s.kind == "forest" and s.props):
         # The march lands anywhere within a tolerance, and so close to the
         # lamp that shows: a surface a hand away comes out in terraces. Two
-        # more steps put each hit down on the rock itself.
+        # more steps put each hit down on the rock itself. A forest's
+        # tolerance is wider still — it is set for trees — so a scene with
+        # stones close enough to read a date off takes them too.
         for _ in range(2):
             a = coarse(dx * t + ex, dy * t + ey, dz * t + ez)
             t = np.where(hit, t + a * 0.9, t).astype(F32)
@@ -2307,12 +2362,23 @@ def _render(s: Scene, light: float, w: int, h: int) -> Image.Image:
         tone = _TONE.copy()
         if s.deadwood:
             tone[_M_BARK] = 1.45   # the bark is off them and the wood gone silver
-        albedo = albedo * tone[mat]
+        # A run of water under trees at dusk gives back the dark of the
+        # canopy over it: a wet line darker than the leaves either side,
+        # flat and even where they are mottled.
+        tone[_M_WATER] = 0.7
+        albedo = np.where(mat == _M_WATER, 0.5, albedo) * tone[mat]
+        if s.marks:
+            albedo = albedo * _paint(s, hx, hy, hz, nx, ny, nz)
         if s.path:
             onp = 1.0 / (1.0 + ((hx - _path_x(s, hz)) / s.path) ** 2 * 1.6)
             onp = onp * (mat == _M_GROUND)
             albedo = albedo * (1.0 + 1.3 * onp)
             canopy = canopy + (1.0 - canopy) * 0.7 * onp
+        for kx, kz, kr in s.clearing:
+            # the woods have come back round it but not over it yet, and
+            # what sky there is gets in
+            gap = np.clip((kr + 1.5 - np.hypot(hx - kx, hz - kz)) / 3.0, 0.0, 1.0)
+            canopy = canopy + (1.0 - canopy) * 0.85 * gap
         if s.camp:
             # the camp's bench is trodden bare, and open to the sky
             cx, cz, ax, az = _CLEARING
@@ -2564,6 +2630,10 @@ def _render(s: Scene, light: float, w: int, h: int) -> Image.Image:
             lit = lit * np.exp(-(chord * uneven) ** 2 * 0.7)
 
     lit = lit.reshape(h, w)
+    if s.exposure:
+        # You have been standing over it long enough for your eyes to open
+        # up: the same dusk, but you can see into it now.
+        lit = lit * s.exposure
 
     vy, vx = np.mgrid[0:h, 0:w].astype(F32)
     r2 = (((vx / w) - 0.5) * 2.0) ** 2 + (((vy / h) - 0.5) * 2.0) ** 2
@@ -3038,6 +3108,228 @@ def _marked_block(x, z, fl, half, seed, yaw, high, eye=(0.0, 0.0, 0.0)):
     return (rock.data(), _tag(*hit, math.degrees(math.atan2(n[0], n[2])), _M_GLINT))
 
 
+# --------------------------------------------------------------------------
+#  the homestead in Sander's Hollow — what you go over and look at there
+# --------------------------------------------------------------------------
+#
+# Each is its own picture, from where you would stand to look at it, set
+# into the hollow's woods. Laid in the scene's own frame: you at the origin,
+# facing +z, the ground rising `rise` a metre past four metres out.
+
+def _hill(fl, rise, z):
+    """The hollow's ground at `z`, before its lumps."""
+    return fl + rise * max(z - 4.0, 0.0)
+
+
+def _fieldstone(rng, x, y, z, size, mat=_M_FIELD):
+    """One stone picked off a field: rounded by the weather, longer than it
+    is wide and flatter than either, lying however it came to rest. Grayed
+    with lichen, like all the stone here: paler than the leaf litter, which
+    is how you see any of it at dusk."""
+    half = (size * rng.uniform(1.0, 1.6), size * rng.uniform(0.45, 0.7),
+            size * rng.uniform(0.7, 1.05))
+    return _box(mat, (x, y + half[1] * 0.6, z), half, size * 0.4,
+                yaw=rng.uniform(0.0, 180.0), pitch=rng.normal(0.0, 8.0),
+                roll=rng.normal(0.0, 8.0))
+
+
+def _chimney_fall(fl, rise, seed):
+    """The chimney, from where the house stood in front of its hearth: the
+    firebox still standing, the dressed lintel over it, and the rest of the
+    stack come down across the leaf litter beside it. Two courses of the
+    foundation run back past you on either side, under the leaves."""
+    rng = np.random.default_rng(seed)
+    cx, front = 0.25, 3.7
+    g = _hill(fl, rise, front + 0.5)
+
+    def mass(x, y0, y1, hx, z=front + 0.5, hz=0.5, r=0.05):
+        return _box(_M_FIELD, (x, g + (y0 + y1) / 2, z), (hx, (y1 - y0) / 2, hz), r)
+
+    stack = (mass(cx - 0.76, 0.0, 0.74, 0.26),          # the jambs
+             mass(cx + 0.76, 0.0, 0.74, 0.26),
+             mass(cx, 0.0, 0.72, 0.5, z=front + 0.84, hz=0.13),   # fireback
+             mass(cx, 0.98, 1.7, 1.02),                  # the breast over it
+             mass(cx - 0.45, 1.7, 2.15, 0.57, hz=0.44),  # and what is left
+             mass(cx + 0.5, 1.7, 1.88, 0.47, hz=0.42),   # of the stack, broken
+             _box(_M_DRESSED, (cx, g + 0.86, front + 0.14), (0.72, 0.12, 0.16),
+                  0.012),                                # the lintel
+             _box(_M_FIELD, (cx, g + 0.02, front - 0.24), (0.66, 0.04, 0.26),
+                  0.02, yaw=2.0))                        # the hearthstone
+    # the broken top: stones left sitting loose on it
+    top = [_fieldstone(rng, cx + rng.uniform(-0.9, 0.8), g + 2.15 - (
+        0.27 if i % 2 else 0.0), front + rng.uniform(0.2, 0.8),
+        rng.uniform(0.1, 0.16)) for i in range(5)]
+    # The rest of the stack came down to the right, away from the house:
+    # most of it in a heap against what still stands, the rest thrown out
+    # along the line it fell.
+    heap, tail = [], []
+    hx, hz = cx + 1.55, front + 0.8
+    for _ in range(44):
+        u = rng.random() ** 1.7
+        ang = rng.normal(0.3, 0.45)
+        x = hx + u * 3.0 * math.cos(ang)
+        z = hz + u * 3.0 * math.sin(ang)
+        up = 0.55 * math.exp(-(u * 3.0 / 0.95) ** 2) * rng.uniform(0.25, 1.0)
+        stone = _fieldstone(rng, x, _hill(fl, rise, z) - 0.04 + up, z,
+                            rng.uniform(0.12, 0.22) * (1.0 - 0.35 * u))
+        (heap if u < 0.35 else tail).append(stone)
+    # the foundation, a rectangle of stone under the leaf litter
+    walls = []
+    for side, x in ((-1, -2.3), (1, 2.9)):
+        run = []
+        for z in np.arange(0.9, front, 0.42):
+            run.append(_fieldstone(rng, x + rng.normal(0.0, 0.06),
+                                   _hill(fl, rise, z) - 0.09, z + rng.normal(0.0, 0.05),
+                                   rng.uniform(0.13, 0.18)))
+        walls.append(tuple(run))
+    return (stack + tuple(top), tuple(heap), tuple(tail)) + tuple(walls)
+
+
+def _springhouse(fl, rise, seed):
+    """The springhouse fallen in on itself over the spring; the run out of
+    it, eight feet of cold water; and where the water goes back into the
+    ground, a course of the same fieldstone laid over the hole, mortared,
+    long after the house went."""
+    rng = np.random.default_rng(seed)
+    sx, sz, half, th = 0.9, 5.7, 1.2, 0.18
+    g = _hill(fl, rise, sz)
+    walls = []
+    # each wall stands to its own height where it has not come down, and the
+    # front one is gone to the ground where the water comes out
+    for (x0, z0, x1, z1), tops in (
+            ((-half, -half, -0.45, -half), (0.7, 0.45)),
+            ((0.05, -half, half, -half), (0.35, 0.9)),
+            ((-half, half, half, half), (1.1, 0.8, 1.05)),
+            ((-half, -half, -half, half), (0.95, 0.5, 0.75)),
+            ((half, -half, half, half), (0.85, 1.1, 0.6))):
+        n = len(tops)
+        for k, top in enumerate(tops):
+            a0, a1 = k / n, (k + 1) / n
+            xa, xb = x0 + (x1 - x0) * a0, x0 + (x1 - x0) * a1
+            za, zb = z0 + (z1 - z0) * a0, z0 + (z1 - z0) * a1
+            hx = max(abs(xb - xa) / 2, th)
+            hz = max(abs(zb - za) / 2, th)
+            walls.append(_box(_M_FIELD, (sx + (xa + xb) / 2, g + top / 2 - 0.05,
+                                        sz + (za + zb) / 2),
+                              (hx, top / 2, hz), 0.05))
+    # what came down, inside and out
+    rubble = [_fieldstone(rng, sx + rng.uniform(-1.6, 1.6), g - 0.04,
+                          sz + rng.uniform(-1.6, 1.6), rng.uniform(0.1, 0.2))
+              for _ in range(16)]
+    # the run: out through the gap in the front wall and down to the hole,
+    # wandering the way a trickle does between the roots
+    run = [(sx - 0.2, sz - half + 0.1), (sx - 0.34, sz - half - 0.45),
+           (sx - 0.62, sz - half - 0.9), (sx - 0.78, sz - half - 1.35),
+           (sx - 1.08, sz - half - 1.85), (sx - 1.3, sz - half - 2.35)]
+    water = []
+    for (ax, az), (bx, bz) in zip(run, run[1:]):
+        mx, mz = (ax + bx) / 2, (az + bz) / 2
+        yaw = math.degrees(math.atan2(bx - ax, bz - az))
+        water.append(_box(_M_WATER, (mx, _hill(fl, rise, mz) + 0.035, mz),
+                          (0.11, 0.01, math.hypot(bx - ax, bz - az) / 2 + 0.06),
+                          0.01, yaw=yaw))
+    (px_, pz_), (ex, ez) = run[-2], run[-1]
+    eg = _hill(fl, rise, ez)
+    # where it stands against the course before it finds its way through
+    water.append(_box(_M_WATER, (ex, eg + 0.035, ez), (0.24, 0.01, 0.17),
+                      0.1, yaw=math.degrees(math.atan2(ex - px_, ez - pz_))))
+    # a few stones along the banks, where it has washed the soil off them
+    bank = []
+    for (ax, az), (bx, bz) in zip(run, run[1:]):
+        t = math.atan2(bx - ax, bz - az)
+        side = 1.0 if rng.random() < 0.5 else -1.0
+        x, z = (ax + bx) / 2, (az + bz) / 2
+        bank.append(_fieldstone(rng, x + side * 0.3 * math.cos(t),
+                                _hill(fl, rise, z) - 0.03,
+                                z - side * 0.3 * math.sin(t), rng.uniform(0.07, 0.1)))
+    # The course over the hole: the same stone, set level across the end
+    # of the run in a bed of lime mortar, pale in every joint.
+    dx, dz = ex - px_, ez - pz_
+    n = math.hypot(dx, dz)
+    dx, dz = dx / n, dz / n
+    qx, qz = dz, -dx                              # across the run
+    turn = math.degrees(math.atan2(-qz, qx))
+    cx_, cz_ = ex + dx * 0.34, ez + dz * 0.34
+    course = [_box(_M_MORTAR, (cx_, eg + 0.05, cz_), (0.56, 0.06, 0.08), 0.02,
+                   yaw=turn)]
+    for k in range(5):
+        s_ = (k - 2) * 0.23
+        course.append(_box(_M_FIELD, (cx_ + qx * s_ - dx * 0.02 * s_ * s_,
+                                      eg + 0.1 + 0.015 * rng.random(),
+                                      cz_ + qz * s_ - dz * 0.02 * s_ * s_),
+                           (0.1, 0.07, 0.11), 0.04,
+                           yaw=turn + rng.normal(0.0, 4.0)))
+    return (tuple(walls[:6]), tuple(walls[6:]), tuple(rubble), tuple(water),
+            tuple(bank), tuple(course))
+
+
+def _chimney_marks(fl, rise):
+    """The laid stone of the chimney, and the two dates on its lintel: 1889
+    cut properly with a chisel, and under it 1911, scratched shallow and
+    small in a different hand."""
+    cx, front = 0.25, 3.7
+    g = _hill(fl, rise, front + 0.5)
+    face = front - 0.02
+    return (("stones", cx - 1.1, cx + 1.1, g, g + 0.74, front - 0.1, front + 1.1, 0.55),
+            ("stones", cx - 1.1, cx + 1.1, g + 0.98, g + 2.3, front - 0.1,
+             front + 1.1, 0.55),
+            ("text", "1889", cx - 0.17, g + 0.865, face, 0.085, 0.0, 0.85, 0.04),
+            ("text", "1911", cx - 0.09, g + 0.775, face, 0.058, 0.0, 0.45, 0.04))
+
+
+def _springhouse_marks(fl, rise):
+    """Its walls laid dry, and the course over the hole mortared."""
+    sx, sz, half = 0.9, 5.7, 1.2
+    g = _hill(fl, rise, sz)
+    return (("stones", sx - half - 0.3, sx + half + 0.3, g - 0.1, g + 1.2,
+             sz - half - 0.3, sz + half + 0.3, 0.5),)
+
+
+_HERE = (-0.8, 4.4, 0.34, 0.46, 0.075, 10.0)   # x, z, half w/h/d, yaw
+
+
+def _here_marks(fl):
+    """What is cut in the thirteenth stone: no name; HERE, and under it the
+    date. Cut very carefully."""
+    x, z, hw, hh, hd, yaw = _HERE
+    c, sn = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
+    tall = 0.12
+    wide = 4.27 * tall                  # four glyphs of the lettering hand
+    # the face toward you, and the start of a line centred across it
+    fx, fz = x - sn * hd, z - c * hd
+    ox, oz = fx - c * wide / 2, fz + sn * wide / 2
+    return (("text", "HERE", ox, fl + 0.52, oz, tall, yaw, 0.8, 0.06),
+            ("text", "1911", ox, fl + 0.3, oz, tall, yaw, 0.8, 0.06))
+
+
+def _graves(fl, rise, seed):
+    """Thirteen stones on the rise. Twelve of them in their rows, field-cut,
+    leaning, turned to face the house over the top of the rise — so you see
+    their backs — four of them small. The thirteenth a good twenty feet
+    down from the rest, cut square and careful, and turned the other way,
+    downhill, toward the sink: toward you."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for r, z in enumerate((8.2, 9.2, 10.2)):
+        row = []
+        for c in range(4):
+            x = 1.4 + c * 1.25 + rng.normal(0.0, 0.15) + (0.35 if r % 2 else 0.0)
+            zz = z + rng.normal(0.0, 0.12)
+            small = (r, c) in ((1, 1), (1, 2), (2, 0), (2, 3))
+            w, h = ((rng.uniform(0.17, 0.22), rng.uniform(0.24, 0.3)) if small else
+                    (rng.uniform(0.28, 0.38), rng.uniform(0.42, 0.58)))
+            stone = _Rock((w, h, rng.uniform(0.06, 0.09)), int(rng.integers(1 << 30)),
+                          yaw=rng.normal(0.0, 7.0), pitch=rng.normal(0.0, 7.0),
+                          roll=rng.normal(0.0, 6.0), chips=3)
+            gz = _hill(fl, rise, zz)
+            row.append(stone.put(x, gz + h * 0.7, zz).data(_M_FIELD))
+        rows.append(tuple(row))
+    x, z, hw, hh, hd, yaw = _HERE
+    lone = (_box(_M_FIELD, (x, fl + hh - 0.06, z), (hw, hh, hd), 0.02,
+                 yaw=yaw),)
+    return (lone,) + tuple(rows)
+
+
 # rooms whose furniture has to know their own shape
 # Standing in it, looking downstream: water you can see the cobble through,
 # running, between walls scooped by it and ruled with the beds it cut down
@@ -3101,6 +3393,31 @@ SCENES = {
                 broadleaf=0.35, path=1.2, rise=0.20, floor=-1.35, rough=0.55,
                 freq=0.55, tilt=0.02, palette="dusk", sky=0.22, fog=20.0,
                 var=24.0),
+# What you go over and look at in the hollow, each from where you would
+# stand to look at it: the hearth from inside the house that was; the
+# springhouse from down the run; the thirteenth stone from below it.
+"hollow_chimney": Scene(kind="forest", trees=320, canopy=5.2, understory=0.7,
+                        broadleaf=0.35, rise=0.05, floor=-1.55, rough=0.22,
+                        freq=0.55, tilt=-0.15, lens=1.3, palette="dusk",
+                        sky=0.3, exposure=3.0, fog=20.0, var=24.3,
+                        clearing=((0.3, 2.2, 3.4), (2.6, 5.0, 2.4),
+                                  (5.6, 8.1, 1.3)),
+                        props=_Later(_chimney_fall, -1.55, 0.05, 31),
+                        marks=_chimney_marks(-1.55, 0.05)),
+"hollow_spring": Scene(kind="forest", trees=320, canopy=5.2, understory=0.7,
+                       broadleaf=0.35, rise=0.04, floor=-1.55, rough=0.2,
+                       freq=0.55, tilt=-0.3, lens=1.3, palette="dusk",
+                       sky=0.3, exposure=3.0, fog=20.0, var=24.6,
+                       clearing=((0.9, 5.7, 2.6), (0.1, 2.9, 1.9)),
+                       props=_Later(_springhouse, -1.55, 0.04, 47),
+                       marks=_springhouse_marks(-1.55, 0.04)),
+"hollow_graves": Scene(kind="forest", trees=320, canopy=5.2, understory=0.6,
+                       broadleaf=0.35, rise=0.2, floor=-1.55, rough=0.22,
+                       freq=0.55, tilt=-0.14, lens=1.0, palette="dusk",
+                       sky=0.3, exposure=3.0, fog=20.0, var=24.9,
+                       clearing=((-0.8, 4.4, 2.2), (1.0, 6.4, 2.2), (3.3, 9.2, 3.8)),
+                       props=_Later(_graves, -1.55, 0.2, 13),
+                       marks=_here_marks(-1.55)),
 # Wolf Sink, from where you come into the camp: the table and its people
 # under the work lights, and the hole a dozen yards off under the hemlocks.
 "basecamp": Scene(kind="forest", camp=True, crowd=True, trees=340, canopy=5.4,
@@ -3251,6 +3568,11 @@ SCENES = {
                           for z in np.arange(1.2, 25.0, 1.6)),
               reach=9.0, fog=14.0, var=18.0),
 "choke": Scene(**_CHOKE, tilt=0.62),
+# the same look up the fill a moment later, if you take the lens out: held
+# in the gray, it flares white
+"point": Scene(**{**_CHOKE, "glow": _CHOKE["glow"] + (
+                   (0.1, -1.2 + 0.84 * 13.9 + 0.85, 13.8, 3.5, _M_LAMP),)},
+               tilt=0.62),
 "grip": Scene(**{**_CHOKE, "glow": _CHOKE["glow"] + ((0.5, 5.2, 7.0, 0.7, _M_LAMP),)},
               at=(0.2, 6.5), tilt=0.55, roll=-0.3),
 

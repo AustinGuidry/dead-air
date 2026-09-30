@@ -257,7 +257,7 @@ class DeadAir(App):
         self.seed = seed
         self.game = Game(seed)
         self._started = False   # until the menu says which run this is
-        self._pages = []        # ending pages still behind a Continue
+        self._pages = []        # pages still behind a Continue
         self._view_key = None
         self._can_draw = False
         self._update_notice = None   # "a newer one is out", set at mount
@@ -417,7 +417,7 @@ class DeadAir(App):
             sky = art.sky_band(g.daylight)
         else:
             band, sky = art.light_band(g.reach), 4
-        key = (g.here, band, sky, w, h)
+        key = (g.view, band, sky, w, h)
         if key == self._view_key:
             return
         self._view_key = key
@@ -467,6 +467,13 @@ class DeadAir(App):
         here, band, sky, w, h = self._view_key
         keys = [(x.to, band, sky, w, h) for x in self.game.room.exits
                 if x.to in art.SCENES]
+        # what you could go over and look at here, and the room itself to
+        # come back to afterwards
+        g = self.game
+        keys += [(c.scene, band, sky, w, h) for c in g.room.clues
+                 if c.scene and f"seen:{c.label}" not in g.flags]
+        if here != g.here:
+            keys.insert(0, (g.here, band, sky, w, h))
         if self.game.phase == "park":
             # F re-lights this same room, and the light keeps failing, so
             # both are one keystroke or a few minutes away
@@ -490,6 +497,8 @@ class DeadAir(App):
         log = self.query_one("#narrative", VerticalScroll)
         faint = self.game.layers <= 1 and not self.game.ending
         for kind, text in events:
+            # a page break nothing held back (see paged) is just a paragraph
+            text = text.replace(PAGE, "\n\n")
             style = STYLE.get(kind, "#cdc6bb")
             if faint and kind in ("narr", "title"):
                 style = "#6d675e"
@@ -668,7 +677,7 @@ class DeadAir(App):
 
     def refresh_actions(self):
         g = self.game
-        if g.ending:
+        if g.ending or self._pages:
             self.query_one("#actions", Static).update(
                 " [bold #f0b46b]1[/]   Continue" if self._pages
                 else "[#8d867c]  N  new run    Q  menu[/]")
@@ -697,6 +706,11 @@ class DeadAir(App):
     # -- actions ------------------------------------------------------------
 
     def after(self, events):
+        if self.game.ending:
+            # the ending pages itself (show_ending); nothing before it does
+            events = [(k, t.replace(PAGE, "\n\n")) for k, t in events]
+        else:
+            events, self._pages = self.paged(events)
         self.emit(events)
         if self.game.ending:
             save.clear()        # a finished run is a story, not a save
@@ -705,16 +719,32 @@ class DeadAir(App):
             self.autosave()
         self.refresh_panels()
 
+    @staticmethod
+    def paged(events):
+        """A long speech can carry a Continue (`PAGE`) the way an ending
+        does: the first page now, and the rest held back, one keypress at
+        a time. Whatever came after it arrives with the last page."""
+        pages, page = [], []
+        for kind, text in events:
+            first, *rest = text.split(PAGE)
+            page.append((kind, first))
+            for part in rest:
+                pages.append(page)
+                page = [(kind, part)]
+        pages.append(page)
+        return pages[0], pages[1:]
+
     def show_ending(self):
         head, kind, body = self.game.ending_body()
-        first, *self._pages = [(kind, p) for p in body.split(PAGE)]
-        self.emit([("title", head), first])
+        first, *rest = body.split(PAGE)
+        self._pages = [[(kind, p)] for p in rest]
+        self.emit([("title", head), (kind, first)])
         if not self._pages:
             self.close_ending()
 
     def next_page(self):
-        self.emit([self._pages.pop(0)])
-        if not self._pages:
+        self.emit(self._pages.pop(0))
+        if not self._pages and self.game.ending:
             self.close_ending()
         self.refresh_panels()
 
@@ -735,35 +765,39 @@ class DeadAir(App):
         self.emit(ev)
 
     def action_choose(self, idx: int):
-        if self.playing() and self.game.ending and self._pages and idx == 0:
+        if self.playing() and self._pages and idx == 0:
             self.next_page()
             return
-        if not self.playing() or self.game.ending:
-            return
-        self.after(self.game.act(idx))
+        if self.waiting():
+            self.after(self.game.act(idx))
+
+    def waiting(self):
+        """The run is waiting on you: not over, and not partway through
+        something you are still reading."""
+        return self.playing() and not self.game.ending and not self._pages
 
     def action_listen(self):
-        if self.playing() and not self.game.ending:
+        if self.waiting():
             self.after(self.game.listen())
 
     def action_radio(self):
-        if self.playing() and not self.game.ending:
+        if self.waiting():
             self.after(self.game.radio())
 
     def action_look(self):
-        if self.playing() and not self.game.ending:
+        if self.waiting():
             self.after(self.game.look())
 
     def action_dim(self):
-        if self.playing() and not self.game.ending and self.game.phase == "cave":
+        if self.waiting() and self.game.phase == "cave":
             self.after(self.game.toggle_dim())
 
     def action_lamp(self):
-        if self.playing() and not self.game.ending:
+        if self.waiting():
             self.after(self.game.toggle_lamp())
 
     def action_cell(self):
-        if self.playing() and not self.game.ending and self.game.phase == "cave":
+        if self.waiting() and self.game.phase == "cave":
             self.after(self.game.swap_cell())
 
     def action_restart(self):

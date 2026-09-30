@@ -90,15 +90,19 @@ which is the one thing it will not follow you into, but the thing is
 untouched and nobody seals anything — no choice offered, because you never
 had the tool to make one. Having the lens and not being `bolted` instead
 routes `climb_out` into `choke`, fifteen meters of broken rock at forty
-degrees, where the lens burns it for the first time and it answers back — a
-sound that lands behind your eyes, not your ears, the first onstage hint of
-the thought-reading it gets built around in Act Two. That room is the actual
-choice: turn immediately (`RESCUE_INJURED` — out clean and fast, but it gets
-a piece of you: two fingers that never close again, and something cold
-behind the sternum that turns over every September) or hold the light and
-watch it (`RESCUE_CLEAN` — uninjured, but you stay long enough to see its
-shape and feel it reach for more than your position, so you carry the worse
-memory instead). Both of those gate the sink and fill in the old workings.
+degrees with it closing on you and a hand's width of gray at the top — and
+the lens is still in your pocket. Using it there is the player's call, never
+done for them: leave it and climb, and it is `RESCUE_HARD` after all, out
+clean with the thing entire. Take it out (`point`) and the lens burns it for
+the first time and it answers back — a sound that lands behind your eyes,
+not your ears, the first onstage hint of the thought-reading it gets built
+around in Act Two. That is the second choice: turn immediately
+(`RESCUE_INJURED` — out clean and fast, but it gets a piece of you: two
+fingers that never close again, and something cold behind the sternum that
+turns over every September) or hold the light and watch it
+(`RESCUE_CLEAN` — uninjured, but you stay long enough to see its shape and
+feel it reach for more than your position, so you carry the worse memory
+instead). Both of those gate the sink and fill in the old workings.
 All three of `RESCUE_HARD`/`RESCUE_INJURED`/`RESCUE_CLEAN` are keyed to dawn,
 not the clock — they come out into the gray, at sunrise, or into full
 morning (`DAWN_SKY`) if you took long enough to get there. `climb_out` makes you wait
@@ -109,9 +113,9 @@ foot of the choke around 04:10, in full dark, under prose that is all gray
 light. The nest's third exit, back into the seam alone, drops you back at
 `deep`. Taking the helmet closes the way to the nest — you are running by
 then, and the thing in it is awake — and opens a way back along the
-footprints instead. Up in the gray (`choke`, `grip`) a dead lamp is not a
-death, and neither is one that runs out on the last crawl out of the
-Letterbox — the work lights at the sink beat it (`Game.lit_without_lamp`);
+footprints instead. Up in the gray (`choke`, `point`, `grip`) a dead lamp
+is not a death, and neither is one that runs out on the last crawl out of
+the Letterbox — the work lights at the sink beat it (`Game.lit_without_lamp`);
 a lamp that dies anywhere after the nest ends in a `DARK` that knows
 Wren was with you.
 
@@ -217,6 +221,21 @@ Notes for anyone changing it:
   same ground cells as the trees. Its lamps light with shadows cast by
   anything standing (people, vehicles, trunks, you) and scatter into the
   air around them; a lamp reaches into the sink only through its mouth.
+- Sander's Hollow's homestead gets pictures of its own. A `Clue` may name a
+  `scene`; examining it switches the view to that (`Game.view`), and the
+  next thing you do switches it back. The app draws them ahead while you
+  stand in the room. The chimney fall is seen from inside the house that
+  was: the firebox, a dressed lintel with 1889 cut in it and 1911 scratched
+  under, the stack heaped beside it, the foundation under the leaves. The
+  springhouse is its tumbled walls, the run out of it as a dark wet line,
+  and the mortared course where it goes back into the ground. The cemetery
+  is the thirteenth stone in front of you, HERE and 1911 on its face, and
+  the twelve twenty feet up the rise with their backs to you. They are
+  forest scenes carrying `props` (the cave rooms' primitives), in a
+  `clearing` the woods keep off and open the canopy over. The stone is
+  lichen-gray (`_M_FIELD`) and its laid joints are paint (`stones`, dark
+  where dry-laid, pale where mortared). `exposure` is eyes that have opened
+  up to the dark; the hollow itself stays as dim as it always was.
 - Two cave rooms are drawn as the prose frames them rather than as generic
   passages. The Letterbox (`crawl`) is a bedding-plane crawl: two beds of
   limestone a head's height apart, pinching shut to the sides, the pack

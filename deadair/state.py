@@ -11,7 +11,7 @@ import random
 
 from .content import (ROOMS, AMBIENCE, AMBIENCE_AFTER, ECHO_FRAME, ECHO_ACTS,
                       RADIO, RADIO_AT_BASECAMP, RADIO_AT_SINK, PARK_AMBIENCE, PARK_DUSK,
-                      PAYOFFS, LISTEN_QUIET, PARK_QUIET, PARK_SILENCE)
+                      PAYOFFS, LISTEN_QUIET, PARK_QUIET, PARK_SILENCE, PAGE)
 
 # --- tuning ----------------------------------------------------------------
 LAMP_BURN_HIGH = 0.45      # % per minute, beam wide
@@ -38,6 +38,7 @@ class Game:
         self.phase = "park"        # "park" (Act One) | "cave" (Act Two)
         self.park_minutes = 0
         self.said = {}             # person name -> beats already given
+        self.focus = None          # a clue's own picture, while you look at it
         self.here = "trailhead"
         self.lamp = 100.0
         self.lamp_on = False       # Act One starts in daylight; you switch it
@@ -59,6 +60,14 @@ class Game:
     @property
     def room(self):
         return ROOMS[self.here]
+
+    @property
+    def view(self):
+        """What the viewport shows: where you are, or, straight after you
+        have gone over to look at something that has a picture of its own
+        (the chimney fall, the springhouse), that. Not saved — a resumed
+        run is back standing in the room."""
+        return self.focus or self.here
 
     @property
     def depth(self):
@@ -391,6 +400,7 @@ class Game:
         kind, label, ok, why, obj = opts[idx]
         if not ok:
             return [("sys", f"No. {why.capitalize()}.")]
+        self.focus = None
         if kind == "talk":
             return self._talk(obj)
         if kind == "clue":
@@ -412,6 +422,7 @@ class Game:
         return ev
 
     def _inspect(self, clue):
+        self.focus = clue.scene or None
         self.flags.add(f"seen:{clue.label}")
         if clue.flag:
             self.flags.add(clue.flag)
@@ -618,11 +629,16 @@ class Game:
         if h == "climb_out":
             # The mine head: the lens has a real source here — the knife of
             # gray the mountain leaks at dawn — but only if you still have it
-            # and did not panic your way out of the nest. If so, the burn
-            # buys a choke and a choice instead of a foregone conclusion.
-            # The wait for the gray has already happened, in move().
+            # and did not panic your way out of the nest. If so, you get the
+            # choke, and the choice of whether to use it, instead of a
+            # foregone conclusion. The wait for the gray has already
+            # happened, in move().
             if "lens" in self.flags and "bolted" not in self.flags:
                 return []
+            self.ending = "RESCUE_HARD"
+            return []
+        if h == "rescue_run":
+            # the lens stays in your pocket: out clean, and it keeps the cave
             self.ending = "RESCUE_HARD"
             return []
         if h == "rescue_now":
@@ -705,6 +721,7 @@ class Game:
         return ev
 
     def look(self):
+        self.focus = None
         ev = self._burn(1)
         if self.ending: return ev
         return ev + self.describe(full=True)
@@ -865,9 +882,6 @@ DAWN_SKY = {2: "with the sky going gray", 3: "at sunrise",
 # every ending you walk out of
 SURVIVED = TIMED + RESCUES
 
-# Splits an ending into pages; the reader presses Continue between them.
-PAGE = "\f"
-
 ENDINGS = {
 "OUT_WITH": ("YOU CAME OUT", "good",
     "You come out of the Letterbox into a smell you had forgotten existed: "
@@ -905,6 +919,10 @@ ENDINGS = {
     "lights, and looks at her daughter for a long time, the way she "
     "promised she would. Then she says, \"It's her,\" and crosses the "
     "light." + PAGE +
+    "Your statement and Wren's go to the district's cave specialist, the "
+    "man with the list, and they describe the same thing, and it is the "
+    "thing in eleven pages in a drawer in Blakely under PARTY UNWILLING. "
+    "He signs the order that week.\n\n"
     "Wolf Sink is gated. The paperwork says something about bat "
     "conservation. The man who welds it does the whole rim, not just the "
     "entrance. He is not told why. He does not ask. The old workings on "
@@ -959,6 +977,10 @@ ENDINGS = {
     "lights, and looks at her daughter for a long time, the way she "
     "promised she would. Then she says, \"It's her,\" and crosses the "
     "light." + PAGE +
+    "Your statement and Wren's go to the district's cave specialist, the "
+    "man with the list, and they describe the same thing, and it is the "
+    "thing in eleven pages in a drawer in Blakely under PARTY UNWILLING. "
+    "He signs the order that week.\n\n"
     "Wolf Sink is gated. The paperwork says bat conservation. The man who "
     "welds it does the whole rim, not just the entrance, and he is not "
     "told why and does not ask. The old workings on the far side of the "
