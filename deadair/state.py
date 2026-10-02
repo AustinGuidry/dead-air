@@ -11,7 +11,8 @@ import random
 
 from .content import (ROOMS, AMBIENCE, AMBIENCE_AFTER, ECHO_FRAME, ECHO_ACTS,
                       RADIO, RADIO_AT_BASECAMP, RADIO_AT_SINK, PARK_AMBIENCE, PARK_DUSK,
-                      PAYOFFS, LISTEN_QUIET, PARK_QUIET, PARK_SILENCE, PAGE)
+                      PARK_NOT_AT, PAYOFFS, LISTEN_QUIET, PARK_QUIET, PARK_SILENCE,
+                      PAGE)
 
 # --- tuning ----------------------------------------------------------------
 LAMP_BURN_HIGH = 0.45      # % per minute, beam wide
@@ -26,6 +27,12 @@ PARK_START = 18 * 60 + 40  # 18:40, when you get out of the truck
 DESCENT_START = 2 * 60 + 14   # 02:14, when you put your legs into the cold
 TURNAROUND = 6 * 60           # 06:00, when Trammell calls Blakely
 DAWN = 5 * 60 + 35            # 05:35, enough gray at the choke to burn with
+# Act One's clock stops at 01:50, when Trammell calls the surface search;
+# the bridge picks the night up from there
+PARK_LIMIT = (DESCENT_START - 24 - PARK_START) % (24 * 60)
+# how long Wren had been under at 02:14: she went in about 06:40 the
+# morning before Act One
+WREN_UNDER = 43 * 60 + 34
 CLOSE_WORK = 4             # a clue this slow is close work, and
                            # close work needs real light
 LISTEN_NOTHING = 0.20      # underground, how often L gives you nothing at all
@@ -67,7 +74,31 @@ class Game:
         have gone over to look at something that has a picture of its own
         (the chimney fall, the springhouse), that. Not saved — a resumed
         run is back standing in the room."""
-        return self.focus or self.here
+        return self.focus or self.scene_for(self.here)
+
+    def scene_for(self, rid, came=None):
+        """The picture of room `rid` as things stand — the Drop with your
+        rope on it once you have rigged it. `came` is the room you would
+        walk in from, for a room you are not standing in yet."""
+        return self._pick(rid, ROOMS[rid].scene_if, came)
+
+    def _holds(self, cond, came=None):
+        """A look_if / found_if / scene_if condition: a flag, or
+        came:<room>, or nightfall."""
+        if cond.startswith("came:"):
+            if came is None:
+                came = self.trail[-2] if len(self.trail) > 1 else ""
+            return cond[5:] == came
+        if cond == "nightfall":
+            return self.phase == "park" and self.daylight < 25
+        return cond in self.flags
+
+    def _pick(self, base, alts, came=None):
+        """`base`, or the last of `alts` whose condition holds."""
+        for cond, alt in alts.items():
+            if self._holds(cond, came):
+                base = alt
+        return base
 
     @property
     def depth(self):
@@ -87,9 +118,10 @@ class Game:
     @property
     def layers(self):
         if self.phase == "park":
-            d = self.daylight
-            if d >= 55: return 3
-            if d >= 25: return 2
+            # the work lights hold the camp, whatever the sky is doing
+            if "lit" in self.room.tags: return 3
+            d = self._dusk()
+            if d > 1: return d
             # past that the hillside is only as big as your lamp makes it
             return 2 if self.lamp_on else 1
         r = self.reach
@@ -100,6 +132,15 @@ class Game:
         # of the sink the work lights are: not enough to see the room by,
         # but you are never down to your hand on the rock
         return 1 if self.lit_without_lamp else 0
+
+    def _dusk(self):
+        """How many layers the sky alone still gives you in Act One."""
+        d = self.daylight
+        return 3 if d >= 55 else 2 if d >= 25 else 1
+
+    def hours_under(self):
+        """How long Wren has been under the hill, to the nearest hour."""
+        return round((WREN_UNDER + self.minutes) / 60)
 
     @property
     def lit_without_lamp(self):
@@ -127,7 +168,7 @@ class Game:
 
     def surface_clock(self):
         """The time of day at the surface. Act Two starts at 02:14 and the
-        run can be anything from twelve minutes to most of the night, so
+        run can be anything from fifteen minutes to most of the night, so
         nothing about the exit can be written down in advance."""
         m = (DESCENT_START + self.minutes) % (24 * 60)
         return f"{m // 60:02d}:{m % 60:02d}"
@@ -165,8 +206,8 @@ class Game:
         if self.phase == "park":
             # Above ground nothing is draining except the sun, which is not
             # negotiable and does not care what you still had to do.
-            before = self.layers
-            self.park_minutes += mins
+            before, dusk = self.layers, self._dusk()
+            self.park_minutes = min(self.park_minutes + mins, PARK_LIMIT)
             if self.layers < before:
                 ev.append(("alarm", {
                     2: "The light goes flat and shadowless, all at once, "
@@ -176,6 +217,20 @@ class Game:
                        "hillside with an unlit lamp on your helmet and "
                        "nothing to read the ground by.  [F]"
                 }[self.layers]))
+            elif "lit" in self.room.tags and self._dusk() < dusk:
+                # under the work lights the sky goes without taking the
+                # room with it
+                if self._dusk() == 2:
+                    ev.append(("alarm",
+                        "The light goes flat and shadowless, all at once, "
+                        "the way it does. Out past the work lights you have "
+                        "maybe half an hour of usable evening, and then you "
+                        "have a headlamp."))
+                elif not self.lamp_on:
+                    ev.append(("alarm",
+                        "That is the day gone. The work lights hold the "
+                        "camp, and past them the ridge is black, and you "
+                        "have an unlit lamp on your helmet.  [F]"))
             return ev
 
         if air_bad is None:
@@ -245,6 +300,17 @@ class Game:
                     "wait for the team. She is counting again, under her "
                     "breath.\n\nAfter a while, she stops. After a while "
                     "longer, something sits down on your other side.")]
+            if "crawl" in self.room.tags:
+                return [("alarm",
+                    "The lamp dies. Not dramatically. It just stops, and the "
+                    "dark that replaces it is not the dark you have been in "
+                    "all night — it is complete, and it has weight, and it "
+                    "presses on the front of your eyes.\n\nThere is no "
+                    "sitting up in here. You lie on your side between the "
+                    "two beds of rock with your cheek on the silt, because "
+                    "that is the protocol: stay put, conserve, wait for the "
+                    "team.\n\nAfter a while, something lies down in the silt "
+                    "beside you.")]
             return [("alarm",
                 "The lamp dies. Not dramatically. It just stops, and the "
                 "dark that replaces it is not the dark you have been in all "
@@ -259,11 +325,12 @@ class Game:
         if self.ending or self.pursuit is None: return []
         if self.pursuit >= PURSUIT_LIMIT:
             self.ending = "TAKEN"
+            going = "crawling" if "crawl" in self.room.tags else "walking"
             return [("alarm",
                 "It stops being behind you.\n\nThere is no impact, no "
                 "sound, no moment you could point to in a report. Simply: "
                 "the passage ahead of you is the passage behind you, and "
-                "you are walking, calmly, in the dark, with your lamp "
+                f"you are {going}, calmly, in the dark, with your lamp "
                 "switched off, and you do not remember switching it off, "
                 "and you are not going toward the surface.")]
         left = PURSUIT_LIMIT - self.pursuit
@@ -286,23 +353,25 @@ class Game:
             # depth is meaningless while you are still standing on the grass
             head = r.name if self.phase == "park" else f"{r.name}   ·   {r.depth} m"
             ev.append(("title", head))
-        look = r.look
-        for flag, alt in r.look_if.items():
-            if flag in self.flags:
-                look = alt
+        look = self._pick(r.look, r.look_if)
         n = self.layers
         if n == 0:
             ev.append(("narr", "You put your hand out and find rock. That is "
                                "the whole of what you know about this place."))
-            return ev
-        for i in range(min(n, 3)):
-            text = look[i] if i < len(look) else ""
-            if text:
-                ev.append(("narr", text))
-        if n < 3 and any(look[i] for i in range(n, min(3, len(look)))):
-            ev.append(("sys", "Past that, the light has gone."
-                              if self.phase == "park"
-                              else "Past that, the beam gives out."))
+        else:
+            for i in range(min(n, 3)):
+                text = look[i] if i < len(look) else ""
+                if text:
+                    ev.append(("narr", text))
+            if n < 3 and any(look[i] for i in range(n, min(3, len(look)))):
+                ev.append(("sys", "Past that, the light has gone."
+                                  if self.phase == "park"
+                                  else "Past that, the beam gives out."))
+        # the beam did not get there, but you can walk up to it — every
+        # time, or a room you come back to dim loses the thing it is about
+        found = self._pick(r.found, r.found_if)
+        if found and n < 3:
+            ev.append(("narr", found))
         return ev
 
     # -- actions ------------------------------------------------------------
@@ -318,11 +387,9 @@ class Game:
 
         ev += self.describe(full=True)
 
-        if first and self.room.found and self.layers < 3:
-            # the beam did not get there, but on a first visit you did
-            ev.append(("narr", self.room.found))
         if first and self.room.first:
-            ev.append(("narr", self.room.first))
+            ev.append(("narr", self.room.first.replace(
+                "{hours_under}", _words(self.hours_under()))))
         if first and self.here in ("roost", "ladder"):
             self.cells += 1
             ev.append(("good", "SPARE BATTERY STOWED."))
@@ -368,12 +435,17 @@ class Game:
         if self.phase == "park":
             for p in self.room.people:
                 n = self.said.get(p.name, 0)
-                if n >= len(p.beats):
+                if p.needs and p.needs not in self.flags:
+                    out.append(("talk", f"Talk to {p.name}", False,
+                                p.deny or "not yet", p))
+                elif n >= len(p.beats):
                     out.append(("talk", p.name, False, "nothing more", p))
                 else:
                     verb = "Talk to" if n == 0 else "Press"
                     out.append(("talk", f"{verb} {p.name}", True, p.role, p))
             for c in self.room.clues:
+                if c.needs and c.needs not in self.flags:
+                    continue
                 if f"seen:{c.label}" in self.flags:
                     out.append(("clue", c.label, False, "done", c))
                 elif c.mins >= CLOSE_WORK and self.daylight < 25:
@@ -399,7 +471,7 @@ class Game:
             return []
         kind, label, ok, why, obj = opts[idx]
         if not ok:
-            return [("sys", f"No. {why.capitalize()}.")]
+            return [("sys", f"No. {why[:1].upper() + why[1:]}.")]
         self.focus = None
         if kind == "talk":
             return self._talk(obj)
@@ -482,7 +554,7 @@ class Game:
             return []
         x, enabled, reason = opts[idx]
         if not enabled:
-            return [("sys", f"No. {reason.capitalize()}.")]
+            return [("sys", f"No. {reason[:1].upper() + reason[1:]}.")]
 
         ev = []
 
@@ -507,21 +579,30 @@ class Game:
             ev += self._wait_for_dawn()
 
         seen = f"once:{x.to}:{self.here}"
-        first = (x.once or x.once_after) and seen not in self.flags
-        if first:
-            self.flags.add(seen)
+        first = seen not in self.flags
+        self.flags.add(seen)
         if first and x.once:
             ev.append(("narr", x.once))
-        if x.travel:
-            ev.append(("narr", x.travel))
+        travel = x.again if x.again and not first else x.travel
+        if travel:
+            ev.append(("narr", travel))
         if first and x.once_after:
             ev.append(("narr", x.once_after))
+        if first:
+            # what you learned up top, at the crossing it means something
+            for flag, line in PAYOFFS.get(f"{self.here}>{x.to}", {}).items():
+                if flag in self.flags:
+                    ev.append(("sys", line))
 
         ev += self._hazard(x)
         if self.ending:
+            if self.ending in RESCUES:
+                # the climb out takes the time it takes, ending or not
+                self.minutes += x.mins
             return ev
 
         src, dst = self.here, x.to
+        self.flags.add(f"left:{src}")
         air_bad = ("badair" in ROOMS[src].tags) or ("badair" in ROOMS[dst].tags)
         self.here = dst
         ev += self._burn(x.mins, air_bad=air_bad)
@@ -686,7 +767,9 @@ class Game:
         if self.phase == "park":
             if "quiet" in self.room.tags:
                 return ev + [("sound", PARK_SILENCE)]
-            pool = PARK_AMBIENCE + ([PARK_DUSK] if self.daylight > 0 else [])
+            pool = ([x for x in PARK_AMBIENCE
+                     if self.here not in PARK_NOT_AT.get(x, ())]
+                    + ([PARK_DUSK] if self.daylight > 0 else []))
             line = self._pick_sound(pool)
             return ev + [("sound", line or PARK_QUIET)]
         # Sometimes it gives you nothing at all. Deep in, what it gives you
@@ -739,6 +822,10 @@ class Game:
             return [("sys", "You switch the lamp on. In this much daylight "
                             "it puts a pale coin on the ground in front of "
                             "your boots and tells you nothing.")]
+        if "lit" in self.room.tags:
+            return [("sys", "You switch the lamp on. Under the work lights "
+                            "it adds almost nothing, but it will be there "
+                            "when you walk out of them.")]
         return [("sys", "You switch the lamp on, and the hillside shrinks "
                         "to the few yards of it you can see.")]
 
@@ -756,17 +843,47 @@ class Game:
         head, kind, body = ENDINGS[self.ending]
         if self.ending == "DARK" and "with_wren" in self.flags:
             head, kind, body = DARK_WITH_WREN
+        elif self.ending == "DARK" and "crawl" in self.room.tags:
+            head, kind, body = DARK_IN_CRAWL
         if self.ending == "OUT_ALONE" and "nest" in self.visited:
             # you found her alive, and you came out without her
             head, kind, body = OUT_ALONE_LEFT_HER
+        fill = self._callbacks()
         if self.ending in TIMED:
             band = self._sky_band()
-            body = body.format(clock=self.surface_clock(),
-                               sky=SKY[band], arrival=ARRIVAL[band],
-                               haunt=HAUNT["long_room" in self.visited])
+            fill.update(clock=self.surface_clock(), sky=SKY[band],
+                        arrival=ARRIVAL[band],
+                        haunt=HAUNT["long_room" in self.visited])
         elif self.ending in RESCUES:
-            body = body.format(dawn=DAWN_SKY[max(2, self._sky_band())])
+            fill.update(dawn=DAWN_SKY[max(2, self._sky_band())],
+                        climb=CLIMB["choke" in self.visited])
+        if self.ending in TIMED + RESCUES + ("STAY",):
+            body = body.format(**fill)
         return head, kind, body
+
+    def _callbacks(self):
+        """The endings' nods back to Act One, each only if you were there
+        to hear the thing it nods to."""
+        f = self.flags
+        return dict(
+            family=(" Nobody tells her she is not family."
+                    if "clue:family" in f else ""),
+            promise=(", the way she promised she would"
+                     if "clue:promise" in f else ""),
+            specialist=("the district's cave specialist, the man with the "
+                        "list" if "clue:list" in f
+                        else "the district's cave specialist"),
+            survey=("the thing in eleven pages in a drawer in Blakely under "
+                    "PARTY UNWILLING" if "clue:map" in f
+                    else "the thing in eleven pages in a drawer in Blakely, "
+                         "the reason the 1973 survey was never finished"),
+            board=("the third name on the board"
+                   if {"clue:board", "clue:sixtyeight"} & f
+                   else "the third name on the Missing Persons board outside "
+                        "the ranger station"),
+            drawer=("the same drawer the last one did"
+                    if "clue:sixtyeight" in f else "a drawer"),
+        )
 
     def ending_note(self):
         """You gave the family a turnaround time. This is you missing it."""
@@ -848,7 +965,7 @@ class Game:
 #  ENDINGS
 #
 #  The two you can walk away from resolve against the clock. A run is
-#  anywhere from twelve minutes to most of the night, so what the sky is
+#  anywhere from fifteen minutes to most of the night, so what the sky is
 #  doing when you come out is not something the prose can know in advance.
 # --------------------------------------------------------------------------
 
@@ -903,8 +1020,7 @@ ENDINGS = {
     "the rigging, the times — all of it clean and professional, and none "
     "of it explains why you turned around. They know that. Nobody "
     "asks.\n\n"
-    "The search is called at day nine. Wren Alcott is now the third name "
-    "on the board.\n\n"
+    "The search is called at day nine. Wren Alcott is now {board}.\n\n"
     "You do not cave again. That is fine. What is not fine is that some "
     "nights, in a house with the lights on, you can hear {haunt}"),
 
@@ -914,14 +1030,13 @@ ENDINGS = {
     "your glove filling with something that is not entirely blood, and you "
     "do not look at it properly until you have gotten her around the hill "
     "to the work lights and Trammell is already cutting the glove off.\n\n"
-    "Junie gets to her first. Nobody tells her she is not family. "
+    "Junie gets to her first.{family} "
     "Rosalind stays exactly where she is, at the edge of the work "
-    "lights, and looks at her daughter for a long time, the way she "
-    "promised she would. Then she says, \"It's her,\" and crosses the "
+    "lights, and looks at her daughter for a long time{promise}. "
+    "Then she says, \"It's her,\" and crosses the "
     "light." + PAGE +
-    "Your statement and Wren's go to the district's cave specialist, the "
-    "man with the list, and they describe the same thing, and it is the "
-    "thing in eleven pages in a drawer in Blakely under PARTY UNWILLING. "
+    "Your statement and Wren's go to {specialist}, and they describe the "
+    "same thing, and it is {survey}. "
     "He signs the order that week.\n\n"
     "Wolf Sink is gated. The paperwork says something about bat "
     "conservation. The man who welds it does the whole rim, not just the "
@@ -972,14 +1087,13 @@ ENDINGS = {
     "you and up and out into the open air, and only then do you follow "
     "her, and behind you the gray goes back to being nothing.\n\n"
     "You walk her around the hill to the work lights {dawn}. "
-    "Junie gets to her first. Nobody tells her she is not family. "
+    "Junie gets to her first.{family} "
     "Rosalind stays exactly where she is, at the edge of the work "
-    "lights, and looks at her daughter for a long time, the way she "
-    "promised she would. Then she says, \"It's her,\" and crosses the "
+    "lights, and looks at her daughter for a long time{promise}. "
+    "Then she says, \"It's her,\" and crosses the "
     "light." + PAGE +
-    "Your statement and Wren's go to the district's cave specialist, the "
-    "man with the list, and they describe the same thing, and it is the "
-    "thing in eleven pages in a drawer in Blakely under PARTY UNWILLING. "
+    "Your statement and Wren's go to {specialist}, and they describe the "
+    "same thing, and it is {survey}. "
     "He signs the order that week.\n\n"
     "Wolf Sink is gated. The paperwork says bat conservation. The man who "
     "welds it does the whole rim, not just the entrance, and he is not "
@@ -994,8 +1108,7 @@ ENDINGS = {
     "That is somehow the worst part."),
 
 "RESCUE_HARD": ("YOU BROUGHT HER OUT", "sys",
-    "Fifteen meters of broken rock at forty degrees. You go up it. She goes "
-    "up it. Something goes up it behind her.\n\n"
+    "{climb}\n\n"
     "You do not stop and you do not look. You get a hand on her collar where "
     "the rock pinches and you drag her through it into the open, out under "
     "the hemlocks {dawn}, and you turn around with your "
@@ -1004,10 +1117,10 @@ ENDINGS = {
     "the one rule of it you can prove. But it is still down there, entire, "
     "having lost nothing tonight except the two of you." + PAGE +
     "You walk her around the hill to the work lights. "
-    "Junie gets to her first. Nobody tells her she is not family. "
+    "Junie gets to her first.{family} "
     "Rosalind stays exactly where she is, at the edge of the work "
-    "lights, and looks at her daughter for a long time, the way she "
-    "promised she would. Then she says, \"It's her,\" and crosses the "
+    "lights, and looks at her daughter for a long time{promise}. "
+    "Then she says, \"It's her,\" and crosses the "
     "light."
     "\n\n"
     "Wren Alcott lives. She is in the news for a week. She tells it once, "
@@ -1040,7 +1153,7 @@ ENDINGS = {
     "Ten days later, someone who has known them for twenty-something years "
     "sits across a table from them and knows, immediately and completely, "
     "that they are not who they say they are. They file a report. Won't "
-    "retract it. It goes in the same drawer the last one did, because that "
+    "retract it. It goes in {drawer}, because that "
     "is where these things go, and somebody, eventually, has to type it "
     "up. And sooner or later, someone will go down there again."),
 
@@ -1097,8 +1210,8 @@ OUT_ALONE_LEFT_HER = ("YOU CAME OUT", "sys",
     "and asks you, once, whether you saw anything. You tell her no. She "
     "looks at you for a long time, the way you would look at someone who "
     "came back not right.\n\n"
-    "The search is called at day nine. Wren Alcott is now the third name on "
-    "the board, and you are the only person alive who knows she was alive "
+    "The search is called at day nine. Wren Alcott is now {board}, "
+    "and you are the only person alive who knows she was alive "
     "when they wrote it." + PAGE +
     "You do not cave again. That is fine. What is not fine is that some "
     "nights, in a house with the lights on, you can hear someone counting, "
@@ -1113,3 +1226,36 @@ DARK_WITH_WREN = ("LAMP FAILURE", "alarm",
     "Your lamp is in your lap, switched off, with a fresh battery in it. "
     "You had none left. There is room beside you for one more person, and the silt there is pressed flat, "
     "and nobody is in it.")
+
+# DARK, when the lamp dies in the Letterbox, where there is no sitting up.
+DARK_IN_CRAWL = ("LAMP FAILURE", "alarm",
+    "They find you on the fourth day, lying on your side in the crawl, "
+    "hypothermic and only hours past saving.\n\n"
+    "Your lamp is in your hand, switched off, with a fresh battery in it. "
+    "You had none left.")
+
+# How RESCUE_HARD opens: straight up out of the workings, or — when the
+# choke has already told you what fifteen meters of it looks like — with the
+# lens left where it is.
+CLIMB = (
+    "Fifteen meters of broken rock at forty degrees. You go up it. She goes "
+    "up it. Something goes up it behind her.",
+    "The lens stays in your pocket. You go up. She goes up. Something goes "
+    "up behind her.",
+)
+
+
+_ONES = ("zero one two three four five six seven eight nine ten eleven "
+         "twelve thirteen fourteen fifteen sixteen seventeen eighteen "
+         "nineteen").split()
+_TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
+
+
+def _words(n):
+    """43 -> 'forty-three', for the hours the prose counts in."""
+    if n < 20:
+        return _ONES[n]
+    if n < 100:
+        tens, ones = divmod(n, 10)
+        return _TENS[tens] + (f"-{_ONES[ones]}" if ones else "")
+    return str(n)

@@ -23,9 +23,19 @@ resource you cannot die from spending. By the time the lamp starts draining
 you already know what running out of light feels like.
 
 You are cleared to descend once you have Trammell's brief and have spoken to
-Wren's mother. Everything else in Act One is optional and none of it changes
-a mechanic; it changes what you understand while a mechanic is happening to
-you. See PAYOFFS.
+Wren's mother. She will not talk to you until Trammell has given you a
+turnaround time (his second beat), because the first thing you give her is
+one; and the lens on the table is not offered until you have met him,
+because he is the one who hands it to you. Everything else in Act One is
+optional and none of it changes a mechanic; it changes what you understand
+while a mechanic is happening to you. See PAYOFFS — and the endings, whose
+nods back to Act One (`Game._callbacks()`) each appear only if you heard the
+thing they nod to.
+
+Basecamp is tagged `lit`: the work lights hold the whole camp after dusk, so
+it keeps all three layers and gets its own lines for the dusk going. Act
+One's clock stops at 01:50, when Trammell calls the surface search, so the
+bridge is never told after the fact.
 
 **The bridge.** Taking the descent runs the night ground search past you in
 three paragraphs, resets the clock, and puts you on the lip of the sink at
@@ -39,9 +49,22 @@ the meter is a real decision rather than a countdown.
 
 The plot never lives only in the far layer. A room whose first visit depends
 on something out there — the suit at the end of the footprints, Wren across
-the nest, the dive line, the orange tape — carries a `found` line, shown on
-that first visit only when the beam could not reach it: the thing you walk
-up to, told at arm's length.
+the nest, the dive line, the orange tape — carries a `found` line, shown
+whenever the beam cannot reach it: the thing you walk up to, told at arm's
+length. Every time, not just the first — come back to the nest on a dying
+lamp and she is still there. `found_if` changes it once things have changed
+(the suit with the helmet gone; Wren where you left her).
+
+A room changes when you change it. `look_if`, `found_if` and `scene_if` on a
+`Room` take a flag, `came:<room>` (you walked in from there), or `nightfall`
+(Act One, the day gone): the Drop with your rope on it, the Breakdown after
+the collapse, the deep without the helmet, the Keyhole with your pack lying
+by the slot. Every move also sets `left:<room>`, which is how "Answer it" is
+only offered while the voice that said your name is still out there. An
+exit's `again` replaces its `travel` after the first traverse, where the
+travel is a discovery; a `PAYOFFS` key of `"from>to"` fires on a crossing
+rather than an arrival (the promise, once you are through the Keyhole with
+your helmet off).
 
 **Resources.** Lamp (burns per minute, two spare batteries hidden in the cave,
 swapped in by themselves if it dies with one in your pocket),
@@ -67,7 +90,7 @@ of limestone and saying something impossible. Taking the find starts a
 
 Two of the five you survive — `OUT_WITH` and `OUT_ALONE`, the solo exits back
 through the Letterbox — resolve against the clock. Act Two starts at 02:14 and
-a run is anywhere from twelve minutes (straight back out of the Letterbox) to
+a run is anywhere from fifteen minutes (straight back out of the Letterbox) to
 most of the night, so nothing about the exit can be written down in advance:
 `SKY` and `ARRIVAL` in `state.py` are indexed by `Game._sky_band()`, which
 knows roughly where September twilight falls at this latitude. Coming out
@@ -122,7 +145,12 @@ Wren was with you.
 The Letterbox is the one crawl you cannot turn around in, so its exits
 depend on which end you came in by (`Exit.came_from`): from the sink you
 push on or reverse out; from the Bell you crawl out head-first or reverse
-back.
+back. Reversing takes twelve minutes to the crawl's nine — the prose says it
+takes longer, so it does. The Keyhole uses `came_from` the same way: from the
+cache your pack is on your back and you strip it; from the Long Room it is
+lying by the slot, and you either leave it there or pick it up. The
+Letterbox is tagged `crawl`, and a `DARK` or `TAKEN` in it knows there is no
+sitting up or walking in there.
 
 **Graphics that carry the mechanic.** Every room has a viewport above the
 prose, and it is not decoration. Scenes are described as signed-distance
@@ -145,11 +173,16 @@ touching the engine. A new room is a `Room(...)` in `ROOMS` plus an `Exit`
 pointing at it; give it `mx`/`my` grid coordinates and it appears on the
 survey map automatically, and a `Scene(...)` in `art.SCENES` under the same
 id and it draws itself. A room with no scene falls back to a generic passage
-rather than failing.
+rather than failing. A room that changes gets a second scene under its own
+id (`pitch_head_rigged`, `deep_taken`, `squeeze_packed`), picked by the
+room's `scene_if` through `Game.scene_for()` — which the app also asks when
+it draws ahead, so the next room is drawn as it will look.
 
 Act One rooms carry `people` (a `Person` with `beats` consumed one per ask)
 and `clues` (a `Clue` costing minutes and granting a flag), and are tagged
-`park` so they stay off the survey map and out of the passage count.
+`park` so they stay off the survey map and out of the passage count. Either
+can carry `needs`: a person you cannot talk to yet shows with their `deny`,
+a clue you cannot look at yet is not shown.
 `Game.choices()` returns people, then clues, then exits as one numbered list;
 in Act Two the first two are empty and it collapses to the exits, which is
 what it always was.

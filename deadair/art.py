@@ -87,6 +87,7 @@ class Scene:
     hole_r: float = 2.6         # shaft radius for kind="hole" (the pitch head)
     hole_z: float = 5.2         # how far ahead the hole sits
     depth_below: float = 12.0   # how deep the hole goes before rock
+    rigged: bool = False        # the Drop with your rope down it
     trees: int = 0              # trunks in view — a stand, or around a hole
     canopy: float = 0.0         # height of the lowest branches, 0 = bare
     understory: float = 0.0     # how thick the brush is, 1.0 = walls the path
@@ -2053,6 +2054,18 @@ def _air_fn(s: Scene, detail=False):
                  0.004, 15.0),
                 ((fx - 0.11, top - 0.26, fz - 0.07), (0.007, 0.27, 0.026),
                  0.004, 15.0)]
+        # once you have rigged it: your rope, tied off at the thread and
+        # over the lip a little way ahead of it, free-hanging the twelve
+        # metres down. (The backup to the flake runs round the near lip,
+        # under your chest — drawn there it is a rope across the lens.)
+        rope = []
+        if s.rigged:
+            ox, oz = lip(-1.25)
+            run = [(tx - 0.14, top + 0.12, tz - 0.04),
+                   (ox - 0.03, top + 0.03, oz),
+                   (ox + 0.04, top - 1.3, oz + 0.02),
+                   (ox + 0.08, bottom + 0.3, oz + 0.05)]
+            rope = list(zip(run, run[1:]))
 
         def parts(px, py, pz):
             """Rock, the breakdown far below, and the tape."""
@@ -2081,15 +2094,18 @@ def _air_fn(s: Scene, detail=False):
             loop = np.sqrt(ring * ring + (px - thread[0]) ** 2) - 0.045
             rock = np.minimum(rock, np.minimum(_rbox(px, py, pz, *flake), loop))
             flag = np.min([_rbox(px, py, pz, *b) for b in tape], axis=0)
-            return rock, flag
+            line = (np.min([_seg(px, py, pz, a, b, 0.016) for a, b in rope],
+                           axis=0) if rope else np.full_like(px, 1e3))
+            return rock, flag, line
 
         def air(px, py, pz):
-            rock, flag = parts(px, py, pz)
-            return np.minimum(rock, flag)
+            rock, flag, line = parts(px, py, pz)
+            return np.minimum(np.minimum(rock, flag), line)
 
         def material(px, py, pz):
-            rock, flag = parts(px, py, pz)
-            return np.where(flag < rock, _M_FLAG, _M_ROCK)
+            rock, flag, line = parts(px, py, pz)
+            return np.where(line < np.minimum(rock, flag), _M_ROPE,
+                            np.where(flag < rock, _M_FLAG, _M_ROCK))
 
         air.material = material
 
@@ -2705,12 +2721,38 @@ def _cache(x, z, fl, seed, yaw, pitch=3.0, roll=-4.0, twist=0.0):
     back = np.array([0.0, 0.4, 0.12])
     base = hit - R @ back
     base[1] = fl - 0.01
+    pack = _pack(base, turn, lean, fl, _M_RED)
+
+    # what broke off the block when it came down, lying round the foot of it
+    rng = np.random.default_rng(seed + 1)
+    feet = block.corners()
+    feet = feet[np.argsort(feet[:, 1])[:5]]
+    spall = []
+    for fx, _, fz in feet:
+        a, c = rng.uniform(0.07, 0.22, 2)
+        chip = _Rock((a, max(a, c) * rng.uniform(0.4, 0.8), c),
+                     int(rng.integers(1 << 30)), yaw=rng.uniform(0.0, 180.0),
+                     pitch=rng.normal(0.0, 12.0), roll=rng.normal(0.0, 12.0),
+                     chips=2)
+        cx, cz = fx + rng.normal(0.0, 0.25), fz + rng.normal(0.0, 0.25) - 0.1
+        if math.hypot(cx - base[0], cz - base[2]) < 0.45:
+            continue
+        spall.append(chip.put(cx, fl - chip.local[:, 1].min() - 0.02, cz).data())
+    return (block.data(),), pack, tuple(spall)
+
+
+def _pack(base, turn, lean, fl, body):
+    """A forty-litre pack, closed, standing at `base` with its back panel
+    turned `turn` and leaning `lean` degrees back onto whatever is behind
+    it: body, stuffed lid, pockets and straps, the hip belt undone and its
+    webbing on the floor. Her red one at the cache; yours at the Keyhole."""
+    R = _rot(turn, lean)
 
     def at(p):
         return tuple(float(q) for q in base + R @ np.array(p, float))
 
     def bag(c, half, r):
-        return _box(_M_RED, at(c), half, r, yaw=turn, pitch=lean)
+        return _box(body, at(c), half, r, yaw=turn, pitch=lean)
 
     def strap(a, b, r=0.01, mat=_M_TYRE):
         return _cap(mat, at(a), at(b), r)
@@ -2739,22 +2781,7 @@ def _cache(x, z, fl, seed, yaw, pitch=3.0, roll=-4.0, twist=0.0):
                  strap((0.13 * sx, 0.08, 0.1), (0.22 * sx, 0.05, -0.01), 0.035),
                  flat((0.25 * sx, 0.0, -0.03), (0.3 * sx, 0.0, -0.2))]
 
-    # what broke off the block when it came down, lying round the foot of it
-    rng = np.random.default_rng(seed + 1)
-    feet = block.corners()
-    feet = feet[np.argsort(feet[:, 1])[:5]]
-    spall = []
-    for fx, _, fz in feet:
-        a, c = rng.uniform(0.07, 0.22, 2)
-        chip = _Rock((a, max(a, c) * rng.uniform(0.4, 0.8), c),
-                     int(rng.integers(1 << 30)), yaw=rng.uniform(0.0, 180.0),
-                     pitch=rng.normal(0.0, 12.0), roll=rng.normal(0.0, 12.0),
-                     chips=2)
-        cx, cz = fx + rng.normal(0.0, 0.25), fz + rng.normal(0.0, 0.25) - 0.1
-        if math.hypot(cx - base[0], cz - base[2]) < 0.45:
-            continue
-        spall.append(chip.put(cx, fl - chip.local[:, 1].min() - 0.02, cz).data())
-    return (block.data(),), tuple(pack), tuple(spall)
+    return tuple(pack)
 
 
 def _strew(seed, fl, cz, wall, count, keep):
@@ -2861,15 +2888,18 @@ def _track(fl, slope, z0, z1):
     return (rails,) + tuple(sleepers)
 
 
-def _left_behind(x, z, fl):
+def _left_behind(x, z, fl, helmet=True):
     """Her oversuit folded on the silt, and her helmet on top of it with the
-    lamp still burning, turned a little toward you."""
-    return (_box(_M_CLOTH, (x, fl + 0.07, z), (0.27, 0.07, 0.2), 0.05, yaw=8),
+    lamp still burning, turned a little toward you — or, once you have
+    taken the helmet, the suit alone."""
+    suit = (_box(_M_CLOTH, (x, fl + 0.07, z), (0.27, 0.07, 0.2), 0.05, yaw=8),
             _box(_M_CLOTH, (x - 0.02, fl + 0.155, z + 0.02), (0.22, 0.03, 0.16),
-                 0.03, yaw=14),
-            _cap(_M_SUIT, (x, fl + 0.3, z), (x, fl + 0.3, z), 0.14),
-            _box(_M_LAMP, (x - 0.03, fl + 0.34, z - 0.135), (0.035, 0.026, 0.012),
-                 0.01, yaw=-15))
+                 0.03, yaw=14))
+    if not helmet:
+        return suit
+    return suit + (_cap(_M_SUIT, (x, fl + 0.3, z), (x, fl + 0.3, z), 0.14),
+                   _box(_M_LAMP, (x - 0.03, fl + 0.34, z - 0.135),
+                        (0.035, 0.026, 0.012), 0.01, yaw=-15))
 
 
 def _sitting(x, z, fl):
@@ -3581,6 +3611,21 @@ SCENES = {
                  palette="under", reach=2.6, fog=3.4, var=16.0),
 "stay": Scene(kind="void", palette="cave"),
 }
+
+# The same rooms after you have changed them; `Room.scene_if` picks these.
+SCENES.update({
+    # your rope on it: backed up from the flake, tied off at the thread
+    "pitch_head_rigged": replace(SCENES["pitch_head"], rigged=True),
+    # the suit with no helmet on it, and nothing burning out there now
+    "deep_taken": replace(SCENES["deep"], glow=(),
+                          props=(_left_behind(0.55, 8.6, -1.55, helmet=False),)),
+    # back through from the Long Room: your pack where you set it down,
+    # closed and upright against the wall beside the slot
+    # (the same pack you push through the Letterbox), looking down a little
+    # more so it is whole at 3:1
+    "squeeze_packed": replace(SCENES["squeeze"], tilt=-0.32, props=(
+        _pack((-0.55, -1.46, 2.22), -8.0, 12.0, -1.45, _M_PACK),)),
+})
 
 _DEFAULT = Scene(**_PASS, rx=1.8, ry=1.4, floor=-1.3, reach=8.0, var=99.0)
 

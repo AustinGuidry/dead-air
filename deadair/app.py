@@ -465,15 +465,17 @@ class DeadAir(App):
         if not self._view_key:
             return []
         here, band, sky, w, h = self._view_key
-        keys = [(x.to, band, sky, w, h) for x in self.game.room.exits
-                if x.to in art.SCENES]
+        g = self.game
+        # each room as it will look when you walk in from here
+        keys = [(g.scene_for(x.to, came=g.here), band, sky, w, h)
+                for x in g.room.exits if x.to in art.SCENES]
         # what you could go over and look at here, and the room itself to
         # come back to afterwards
-        g = self.game
         keys += [(c.scene, band, sky, w, h) for c in g.room.clues
                  if c.scene and f"seen:{c.label}" not in g.flags]
-        if here != g.here:
-            keys.insert(0, (g.here, band, sky, w, h))
+        home = g.scene_for(g.here)
+        if here != home:
+            keys.insert(0, (home, band, sky, w, h))
         if self.game.phase == "park":
             # F re-lights this same room, and the light keeps failing, so
             # both are one keystroke or a few minutes away
